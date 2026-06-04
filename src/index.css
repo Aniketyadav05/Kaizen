@@ -1,0 +1,334 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light dark;
+}
+
+/* ============================================================
+   FinPilot Design System — Playful & Premium (Duolingo Style)
+   ============================================================ */
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* ─── Warm Light Mode ─── */
+  --color-background: #F7F7F5; /* Warm off-white */
+  --color-foreground: #222222;
+
+  /* Primary Brand (Deep Indigo) */
+  --color-brand: #4C3C92;
+  --color-brand-foreground: #FFFFFF;
+  
+  --color-primary: #4C3C92;
+  --color-primary-foreground: #FFFFFF;
+
+  /* Semantic Finance */
+  --color-income: #58CC02; /* Duolingo Bright Green */
+  --color-expense: #FF4B4B; /* Soft Red */
+  --color-savings: #CE82FF; /* Vibrant Purple */
+  --color-warning: #FF9600; /* Warm Orange */
+
+  /* Neutral/Card Colors */
+  --color-card: #FFFFFF;
+  --color-card-foreground: #222222;
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #222222;
+  
+  --color-gray-1: #777777;
+  --color-gray-2: #999999;
+  --color-gray-3: #BBBBBB;
+  --color-gray-4: #DDDDDD;
+  --color-gray-5: #E5E5E5;
+  --color-gray-6: #F0F0F0;
+
+  --color-secondary: #F0F0F0;
+  --color-secondary-foreground: #222222;
+  --color-muted: #F0F0F0;
+  --color-muted-foreground: #777777;
+  --color-accent: #CE82FF;
+  --color-accent-foreground: #FFFFFF;
+  --color-destructive: #FF4B4B;
+  --color-destructive-foreground: #FFFFFF;
+  --color-border: #E5E5E5;
+  --color-input: #E5E5E5;
+  --color-ring: #4C3C92;
+
+  /* Chart Palette */
+  --color-chart-1: #4C3C92;
+  --color-chart-2: #58CC02;
+  --color-chart-3: #FF9600;
+  --color-chart-4: #FF4B4B;
+  --color-chart-5: #CE82FF;
+
+  --radius: 24px; /* Massive rounded corners */
+}
+
+.dark {
+  /* ─── Rich Charcoal Dark Mode ─── */
+  --color-background: #111113;
+  --color-foreground: #FFFFFF;
+
+  --color-brand: #6250B3;
+  --color-brand-foreground: #FFFFFF;
+  
+  --color-primary: #6250B3;
+  --color-primary-foreground: #FFFFFF;
+
+  /* Semantic Finance */
+  --color-income: #58CC02; 
+  --color-expense: #FF6666; 
+  --color-savings: #D89EFF; 
+  --color-warning: #FFA826; 
+
+  /* Neutral/Card Colors */
+  --color-card: #1C1C1E;
+  --color-card-foreground: #FFFFFF;
+  --color-popover: #1C1C1E;
+  --color-popover-foreground: #FFFFFF;
+
+  --color-gray-1: #8E8E93;
+  --color-gray-2: #636366;
+  --color-gray-3: #48484A;
+  --color-gray-4: #3A3A3C;
+  --color-gray-5: #2C2C2E;
+  --color-gray-6: #1C1C1E;
+
+  --color-secondary: #2C2C2E;
+  --color-secondary-foreground: #FFFFFF;
+  --color-muted: #1C1C1E;
+  --color-muted-foreground: #8E8E93;
+  --color-accent: #D89EFF;
+  --color-accent-foreground: #111113;
+  --color-destructive: #FF6666;
+  --color-destructive-foreground: #FFFFFF;
+  --color-border: #3A3A3C;
+  --color-input: #2C2C2E;
+  --color-ring: #6250B3;
+
+  /* Chart Palette */
+  --color-chart-1: #6250B3;
+  --color-chart-2: #58CC02;
+  --color-chart-3: #FFA826;
+  --color-chart-4: #FF6666;
+  --color-chart-5: #D89EFF;
+}
+
+/* ============================================================
+   Global Styles & Premium Typography
+   ============================================================ */
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+}
+
+body {
+  /* Playful Premium Typography */
+  font-family: 'Manrope', -apple-system, sans-serif;
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  min-height: 100dvh;
+  overscroll-behavior: none;
+
+  /* Safe area support */
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Financial Values & Numbers */
+.sf-rounded {
+  font-family: 'Satoshi', sans-serif;
+  font-feature-settings: "tnum", "cv01";
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Clash Grotesk', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.large-title {
+  font-family: 'Clash Grotesk', sans-serif;
+  font-size: 38px;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-bottom: 24px;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 999px;
+}
+
+/* ─── Focus Visible ─── */
+:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+  border-radius: 8px; /* Standard focus */
+}
+
+/* ─── Native App Feel ─── */
+body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input, textarea, [contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* ─── Bottom Nav Spacer ─── */
+.pb-safe-bottom {
+  padding-bottom: calc(100px + env(safe-area-inset-bottom));
+}
+
+/* ─── Glass Effect (iOS Translucent Material) ─── */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(25px) saturate(200%);
+  -webkit-backdrop-filter: blur(25px) saturate(200%);
+  border-top: 0.5px solid rgba(0, 0, 0, 0.15);
+}
+
+.dark .glass {
+  background: rgba(28, 28, 30, 0.75);
+  border-top: 0.5px solid rgba(255, 255, 255, 0.15);
+}
+
+/* ─── iOS Inset Grouped List ─── */
+.ios-list {
+  background-color: var(--color-card);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.ios-list-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: var(--color-card);
+  border-bottom: 0.5px solid var(--color-border);
+  transition: background-color 0.15s ease;
+  cursor: pointer;
+}
+
+.ios-list-item:hover, .ios-list-item:active {
+  background-color: var(--color-gray-5);
+}
+
+.ios-list-item:last-child {
+  border-bottom: none;
+}
+
+/* ─── Number Input No Spinners ─── */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Remove gradient text for iOS native */
+.gradient-text {
+  color: var(--color-foreground);
+  background: none;
+  -webkit-text-fill-color: initial;
+}
+
+/* ─── UI Polish & Interaction ─── */
+button, a, [role="button"], input[type="submit"], input[type="button"], select, .ios-list-item, .cursor-pointer {
+  cursor: pointer !important;
+}
+
+select option {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-weight: 600;
+}
+
+.ios-card {
+  border-radius: var(--radius);
+  background-color: var(--color-card);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+  border: 1px solid var(--color-border);
+  transition: all 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.ios-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.06);
+}
+
+/* ─── Duolingo Style Button ─── */
+.duo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-family: 'Manrope', sans-serif;
+  letter-spacing: 0.5px;
+  border-radius: 20px;
+  padding: 16px 24px;
+  transition: transform 0.1s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.1s cubic-bezier(0.2, 0, 0, 1);
+  text-transform: uppercase;
+  color: white;
+  cursor: pointer;
+}
+
+.duo-btn-primary {
+  background-color: var(--color-brand);
+  box-shadow: 0 6px 0 color-mix(in srgb, var(--color-brand) 80%, black);
+}
+.duo-btn-primary:active {
+  transform: translateY(6px);
+  box-shadow: 0 0px 0 transparent;
+}
+
+.duo-btn-success {
+  background-color: var(--color-income);
+  box-shadow: 0 6px 0 color-mix(in srgb, var(--color-income) 80%, black);
+}
+.duo-btn-success:active {
+  transform: translateY(6px);
+  box-shadow: 0 0px 0 transparent;
+}
+
+.duo-btn-danger {
+  background-color: var(--color-expense);
+  box-shadow: 0 6px 0 color-mix(in srgb, var(--color-expense) 80%, black);
+}
+.duo-btn-danger:active {
+  transform: translateY(6px);
+  box-shadow: 0 0px 0 transparent;
+}
+
+.duo-btn-secondary {
+  background-color: var(--color-gray-5);
+  color: var(--color-foreground);
+  box-shadow: 0 6px 0 var(--color-gray-4);
+}
+.duo-btn-secondary:active {
+  transform: translateY(6px);
+  box-shadow: 0 0px 0 transparent;
+}
