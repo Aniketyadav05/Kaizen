@@ -235,10 +235,10 @@ export default function Goals() {
             </DialogTitle>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit(handleAdd)} className="space-y-5 mt-4">
-            <div>
+          <form onSubmit={handleSubmit(handleAdd)} className="space-y-5 mt-4 min-w-0 w-full">
+            <div className="min-w-0 w-full">
               <label className="text-[13px] font-bold text-[var(--color-gray-1)] uppercase ml-1">Mission Type</label>
-              <div className="flex overflow-x-auto gap-2 mt-2 pb-1 scrollbar-none">
+              <div className="flex overflow-x-auto gap-2 mt-2 pb-1 scrollbar-none w-full">
                 {GOAL_TYPES.map((type) => {
                   const Icon = getIcon(type.icon);
                   const isSelected = selectedType === type.key;

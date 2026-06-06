@@ -2,11 +2,28 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import api from "../lib/api";
 import useSummaryStore from "./useSummaryStore";
+import useCategoryStore from "./useCategoryStore";
+import { DEFAULT_CATEGORIES } from "../lib/seedData";
+
+/**
+ * Derive budgetType from category name using the category store.
+ * Falls back to DEFAULT_CATEGORIES if store is empty.
+ */
+function deriveBudgetType(categoryName) {
+  const storeCategories = useCategoryStore.getState().categories;
+  const cats = storeCategories.length > 0 ? storeCategories : DEFAULT_CATEGORIES;
+  const cat = cats.find((c) => c.name === categoryName);
+  return cat?.type || "Want";
+}
 
 const useTransactionStore = create(persist((set, get) => ({
   transactions: [],
   isLoading: false,
   error: null,
+  
+  // Smart Defaults
+  lastUsedAccount: null,
+  lastUsedCategory: null,
 
   fetchTransactions: async (startDate, endDate) => {
     set({ isLoading: true, error: null });
@@ -30,7 +47,14 @@ const useTransactionStore = create(persist((set, get) => ({
       
       const fetched = [...txRes.data, ...incRes.data]
         .map(t => ({...t, amount: Number(t.amount)}))
-        .map(t => ({...t, type: t.type || (t.source ? 'income' : 'expense')}));
+        .map(t => ({...t, type: t.type || (t.source ? 'income' : 'expense')}))
+        // Ensure budgetType is set for legacy expenses
+        .map(t => {
+          if (t.type === 'expense') {
+             return { ...t, budgetType: t.budgetType || deriveBudgetType(t.category) };
+          }
+          return t;
+        });
         
       set(state => {
         const existingMap = new Map(state.transactions.map(t => [t.id, t]));
@@ -41,13 +65,21 @@ const useTransactionStore = create(persist((set, get) => ({
         return { transactions: combined, isLoading: false };
       });
     } catch (error) {
-      set({ error: error.message, isLoading: false });
+      // In local mode, just continue with existing
+      set({ isLoading: false });
     }
   },
 
   addTransaction: async (transaction) => {
     const isIncome = transaction.type === "income";
-    const endpoint = isIncome ? "/income" : "/transactions";
+    const isTransfer = transaction.type === "transfer";
+    const endpoint = isIncome ? "/income" : "/transactions"; // Backend doesn't formally support transfers yet, we will mock it
+    
+    // Explicit budget type is now provided by the form, but fallback just in case
+    let budgetType = undefined;
+    if (transaction.type === "expense") {
+       budgetType = transaction.budgetType || deriveBudgetType(transaction.category);
+    }
     
     // Optimistic update
     const tempId = `temp-${Date.now()}`;
@@ -55,26 +87,37 @@ const useTransactionStore = create(persist((set, get) => ({
       ...transaction, 
       id: tempId, 
       date: transaction.date || new Date().toISOString().split("T")[0],
-      amount: Number(transaction.amount)
+      amount: Number(transaction.amount),
+      budgetType,
     };
     
-    set((state) => ({ transactions: [newTransaction, ...state.transactions].sort((a, b) => new Date(b.date) - new Date(a.date)) }));
+    set((state) => ({ 
+      transactions: [newTransaction, ...state.transactions].sort((a, b) => new Date(b.date) - new Date(a.date)),
+      lastUsedAccount: isTransfer ? transaction.fromAccount : transaction.account,
+      lastUsedCategory: isIncome ? null : (isTransfer ? null : transaction.category),
+    }));
     
     try {
-      const payload = isIncome 
-        ? { date: newTransaction.date, source: transaction.category, amount: newTransaction.amount, notes: transaction.notes || "", type: "income" }
-        : { date: newTransaction.date, description: transaction.description || "", category: transaction.category, amount: newTransaction.amount, payment_method: transaction.paymentMethod || "Cash", type: "expense", notes: transaction.notes || "" };
+      let payload;
+      if (isIncome) {
+        payload = { date: newTransaction.date, source: transaction.source, amount: newTransaction.amount, notes: transaction.notes || "", type: "income", payment_method: transaction.account };
+      } else if (isTransfer) {
+        // Mock API call for transfer since backend doesn't support it yet
+        // We will just resolve immediately for local persistence
+        return; 
+      } else {
+        payload = { date: newTransaction.date, description: transaction.description || "", category: transaction.category, amount: newTransaction.amount, payment_method: transaction.account, type: "expense", notes: transaction.notes || "", budgetType };
+      }
 
-      const { data } = await api.post(endpoint, payload);
-      set((state) => ({
-        transactions: state.transactions.map((t) => (t.id === tempId ? { ...data, amount: Number(data.amount), type: isIncome ? 'income' : 'expense', category: isIncome ? data.source : data.category } : t)),
-      }));
-      useSummaryStore.getState().fetchSummariesAndMetadata();
+      if (!isTransfer) {
+        const { data } = await api.post(endpoint, payload);
+        set((state) => ({
+          transactions: state.transactions.map((t) => (t.id === tempId ? { ...t, ...data, id: data.id } : t)),
+        }));
+        useSummaryStore.getState().fetchSummariesAndMetadata();
+      }
     } catch (error) {
-      set((state) => ({
-        transactions: state.transactions.filter((t) => t.id !== tempId),
-        error: error.message,
-      }));
+      // Keep it in local state even if API fails (offline mode)
     }
   },
 
@@ -83,19 +126,20 @@ const useTransactionStore = create(persist((set, get) => ({
     if (!original) return;
     
     const isIncome = original.type === "income";
+    const isTransfer = original.type === "transfer";
     const endpoint = isIncome ? `/income/${id}` : `/transactions/${id}`;
 
     set((state) => ({
       transactions: state.transactions.map((t) => (t.id === id ? { ...t, ...updates } : t)),
     }));
+    
+    if (isTransfer) return;
+
     try {
       await api.put(endpoint, updates);
       useSummaryStore.getState().fetchSummariesAndMetadata();
     } catch (error) {
-      set((state) => ({
-        transactions: state.transactions.map((t) => (t.id === id ? original : t)),
-        error: error.message,
-      }));
+      // Ignore API errors for local persistence
     }
   },
 
@@ -104,20 +148,35 @@ const useTransactionStore = create(persist((set, get) => ({
     if (!original) return;
     
     const isIncome = original.type === "income";
+    const isTransfer = original.type === "transfer";
     const endpoint = isIncome ? `/income/${id}` : `/transactions/${id}`;
 
     set((state) => ({
       transactions: state.transactions.filter((t) => t.id !== id),
     }));
+    
+    if (isTransfer) return;
+
     try {
       await api.delete(endpoint);
       useSummaryStore.getState().fetchSummariesAndMetadata();
     } catch (error) {
-      set((state) => ({
-        transactions: [...state.transactions, original].sort((a, b) => new Date(b.date) - new Date(a.date)),
-        error: error.message,
-      }));
+      // Ignore API errors for local persistence
     }
+  },
+
+  duplicateTransaction: async (id) => {
+    const original = get().transactions.find((t) => t.id === id);
+    if (!original) return;
+
+    const { id: _id, ...rest } = original;
+    const duplicate = {
+      ...rest,
+      date: new Date().toISOString().split("T")[0],
+      description: rest.description ? `${rest.description} (copy)` : "",
+    };
+    
+    get().addTransaction(duplicate);
   },
 }), { name: "finpilot-transactions" }));
 

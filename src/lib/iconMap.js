@@ -20,6 +20,11 @@ import {
   X, Check, ChevronLeft, ChevronRight, ChevronDown,
   Moon, Sun, Monitor, Lock, Unlock,
   FileText, MoreVertical, Info, Bell, Eye, EyeOff,
+  // New icons for categories & SIP features
+  Repeat, Scissors, Gift, ArrowLeftRight, Building,
+  BellRing, CalendarCheck, Clock,
+  Pizza, Coffee, Utensils, Tv, Film, Music, Ticket,
+  Book, BookOpen, Library, ArrowDown, ArrowUp, Minus, Coins
 } from "lucide-react";
 
 const iconMap = {
@@ -36,6 +41,10 @@ const iconMap = {
   X, Check, ChevronLeft, ChevronRight, ChevronDown,
   Moon, Sun, Monitor, Lock, Unlock,
   FileText, MoreVertical, Info, Bell, Eye, EyeOff,
+  Repeat, Scissors, Gift, ArrowLeftRight, Building,
+  BellRing, CalendarCheck, Clock,
+  Pizza, Coffee, Utensils, Tv, Film, Music, Ticket,
+  Book, BookOpen, Library, ArrowDown, ArrowUp, Minus, Coins
 };
 
 /**
@@ -44,19 +53,25 @@ const iconMap = {
  * @returns {React.Component} Lucide icon component, or Circle as fallback
  */
 export function getIcon(name) {
+  if (!name) return Circle;
+  
   const fallbacks = {
-    Food: iconMap.UtensilsCrossed,
-    Rent: iconMap.Home,
-    Shopping: iconMap.ShoppingBag,
-    Travel: iconMap.Car,
-    Entertainment: iconMap.Gamepad2,
-    Utilities: iconMap.Zap,
-    Health: iconMap.Heart,
-    Education: iconMap.GraduationCap,
-    Investment: iconMap.TrendingUp,
-    Savings: iconMap.PiggyBank,
+    food: iconMap.UtensilsCrossed,
+    rent: iconMap.Home,
+    shopping: iconMap.ShoppingBag,
+    travel: iconMap.Car,
+    entertainment: iconMap.Gamepad2,
+    utilities: iconMap.Zap,
+    health: iconMap.Heart,
+    education: iconMap.GraduationCap,
+    investment: iconMap.TrendingUp,
+    savings: iconMap.PiggyBank,
+    expense: iconMap.ArrowDownRight,
+    income: iconMap.ArrowUpRight,
+    salary: iconMap.Briefcase,
   };
-  return iconMap[name] || fallbacks[name] || Circle;
+  
+  return iconMap[name] || fallbacks[name.toLowerCase()] || Circle;
 }
 
 export default iconMap;

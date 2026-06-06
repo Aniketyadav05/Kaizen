@@ -1,274 +1,207 @@
 /**
- * FinPilot — Analytics Page (Apple HIG Style)
+ * FinPilot — Analytics Page
  * 
- * Segmented control for Weekly/Monthly/Yearly.
- * Clean, flat charts mimicking Apple Stocks / Health.
+ * Segmented control for Monthly/Yearly.
+ * Detailed 50/30/20 compliance and breakdown charts.
  */
 
-import { useState, useMemo, useEffect } from "react";
-import { motion } from "framer-motion";
-import {
-  BarChart, Bar, AreaChart, Area,
-  ResponsiveContainer, XAxis, YAxis, Tooltip, ReferenceLine,
-} from "recharts";
+import { useState, useMemo } from "react";
+import { BarChart, Bar, ResponsiveContainer, XAxis, Tooltip, ReferenceLine, PieChart, Pie, Cell } from "recharts";
 import useTransactionStore from "@/stores/useTransactionStore";
 import useCategoryStore from "@/stores/useCategoryStore";
 import useBudgetStore from "@/stores/useBudgetStore";
 import {
   calculateWeeklyAnalysis,
-  calculateDailySpending,
   calculateMonthlySummary,
   calculateCategoryBreakdown,
   calculateYearlyTrend,
   calculateBudgetVsActual,
+  calculateDynamicIncome,
+  calculateDynamicBudget,
 } from "@/lib/calculations";
 import { formatCurrency, cn } from "@/lib/utils";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
-import { ChevronLeft, ChevronRight, PieChart as PieChartIcon, Activity } from "lucide-react";
-import { startOfMonth, endOfMonth, format, subMonths, addMonths } from "date-fns";
+import { startOfMonth, endOfMonth } from "date-fns";
 
 export default function Analytics() {
+  const [timeframe, setTimeframe] = useState("monthly"); // "monthly" | "yearly"
+  
   const transactions = useTransactionStore((s) => s.transactions);
   const categories = useCategoryStore((s) => s.categories);
   const budgetConfig = useBudgetStore((s) => s.budgetConfig);
 
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const month = currentDate.getMonth();
-  const year = currentDate.getFullYear();
-
-  const [tab, setTab] = useState("monthly");
-
-  const navigateMonth = (dir) => {
-    setCurrentDate((d) => (dir > 0 ? addMonths(d, 1) : subMonths(d, 1)));
-  };
-
-  const fetchTransactions = useTransactionStore((s) => s.fetchTransactions);
-
-  // Lazy load transactions for the selected month
-  useEffect(() => {
-    if (tab !== "yearly") {
-      const start = startOfMonth(currentDate);
-      const end = endOfMonth(currentDate);
-      fetchTransactions(start.toISOString().split('T')[0], end.toISOString().split('T')[0]);
-    }
-  }, [currentDate, tab, fetchTransactions]);
-
-  // Lazy load transactions for the whole year when yearly tab is selected
-  useEffect(() => {
-    if (tab === "yearly") {
-      const start = new Date(year, 0, 1);
-      const end = new Date(year, 11, 31);
-      fetchTransactions(start.toISOString().split('T')[0], end.toISOString().split('T')[0]);
-    }
-  }, [tab, year, fetchTransactions]);
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
 
   const monthlyData = useMemo(() => {
-    const daily = calculateDailySpending(transactions, month, year);
-    const summary = calculateMonthlySummary(transactions, budgetConfig, month, year);
-    const catBreakdown = calculateCategoryBreakdown(
-      transactions,
-      categories,
-      startOfMonth(new Date(year, month)),
-      endOfMonth(new Date(year, month))
-    );
-    const weeklyAnalysis = calculateWeeklyAnalysis(transactions, budgetConfig.weeklyLimit, month, year);
-    const budgetVsActual = budgetConfig.salary > 0
-      ? calculateBudgetVsActual(transactions, budgetConfig, {
-          start: startOfMonth(new Date(year, month)),
-          end: endOfMonth(new Date(year, month)),
-        })
+    if (timeframe !== "monthly") return null;
+    const start = startOfMonth(new Date(selectedYear, selectedMonth));
+    const end = endOfMonth(new Date(selectedYear, selectedMonth));
+    const dynamicIncome = calculateDynamicIncome(transactions, start, end);
+    const dynamicBudget = calculateDynamicBudget(dynamicIncome, budgetConfig.needsPercent, budgetConfig.wantsPercent);
+
+    const summary = calculateMonthlySummary(transactions, budgetConfig, selectedMonth, selectedYear);
+    const categoryData = calculateCategoryBreakdown(transactions, categories, start, end);
+    const weeklyAnalysis = calculateWeeklyAnalysis(transactions, selectedMonth, selectedYear, dynamicBudget);
+    const budgetVsActual = dynamicIncome > 0
+      ? calculateBudgetVsActual(transactions, budgetConfig, { start, end })
       : [];
 
-    return { daily, summary, catBreakdown, weeklyAnalysis, budgetVsActual };
-  }, [transactions, categories, budgetConfig, month, year]);
+    return { summary, categoryData, weeklyAnalysis, budgetVsActual, dynamicBudget };
+  }, [transactions, budgetConfig, selectedMonth, selectedYear, timeframe, categories]);
 
   const yearlyData = useMemo(() => {
-    return calculateYearlyTrend(transactions, year);
-  }, [transactions, year]);
+    if (timeframe !== "yearly") return null;
+    return {
+      trend: calculateYearlyTrend(transactions, selectedYear),
+    };
+  }, [transactions, selectedYear, timeframe]);
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-8 h-full overflow-y-auto">
+      <div className="flex items-center justify-between pt-2">
         <h1 className="large-title m-0">Analytics</h1>
-        <div className="flex items-center gap-1 bg-[var(--color-gray-5)] rounded-full px-2 py-1">
-          <button onClick={() => navigateMonth(-1)} className="p-1 active:opacity-50">
-            <ChevronLeft className="h-4 w-4 text-[var(--color-brand)]" />
-          </button>
-          <span className="text-[13px] font-semibold min-w-[80px] text-center">
-            {format(currentDate, "MMM yyyy")}
-          </span>
-          <button onClick={() => navigateMonth(1)} className="p-1 active:opacity-50">
-            <ChevronRight className="h-4 w-4 text-[var(--color-brand)]" />
-          </button>
-        </div>
       </div>
 
-      {/* iOS Segmented Control */}
-      <Tabs value={tab} onValueChange={setTab} className="w-full">
-        <TabsList className="w-full bg-[var(--color-gray-5)] rounded-lg p-1 h-8">
-          <TabsTrigger value="weekly" className="rounded-md text-[13px] h-6 flex-1 data-[state=active]:bg-[var(--color-card)] data-[state=active]:shadow-sm">Weekly</TabsTrigger>
-          <TabsTrigger value="monthly" className="rounded-md text-[13px] h-6 flex-1 data-[state=active]:bg-[var(--color-card)] data-[state=active]:shadow-sm">Monthly</TabsTrigger>
-          <TabsTrigger value="yearly" className="rounded-md text-[13px] h-6 flex-1 data-[state=active]:bg-[var(--color-card)] data-[state=active]:shadow-sm">Yearly</TabsTrigger>
-        </TabsList>
+      {/* Segmented Control */}
+      <div className="flex bg-[var(--color-gray-6)] rounded-[14px] p-1 shadow-inner border border-[var(--color-border)]">
+        {["monthly", "yearly"].map((t) => (
+          <button
+            key={t}
+            onClick={() => setTimeframe(t)}
+            className={cn(
+              "flex-1 py-2 rounded-[10px] font-bold text-[13px] capitalize transition-all tracking-wide",
+              timeframe === t ? "bg-[var(--color-card)] shadow-sm text-[var(--color-foreground)]" : "text-[var(--color-gray-1)]"
+            )}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
 
-        <div className="mt-6 space-y-6">
-          {/* ─── WEEKLY ─── */}
-          <TabsContent value="weekly" className="space-y-6 m-0">
-            <div className="ios-list p-4 overflow-hidden">
-              <h3 className="font-semibold text-[17px] mb-4">Weekly Spending</h3>
-              <div className="h-[200px] -mx-2 overflow-hidden">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={monthlyData.weeklyAnalysis}>
-                    <XAxis dataKey="weekLabel" tick={{ fontSize: 11, fill: "var(--color-gray-1)" }} tickLine={false} axisLine={false} />
-                    <Tooltip
-                      cursor={{fill: "transparent"}}
-                      contentStyle={{ backgroundColor: "var(--color-card)", border: "none", borderRadius: "8px", boxShadow: "0 2px 8px rgba(0,0,0,0.1)", fontSize: "12px", fontWeight: "600" }}
-                      itemStyle={{ color: "var(--color-foreground)" }}
-                      formatter={(v) => [`₹${v.toLocaleString("en-IN")}`, "Spent"]}
+      {timeframe === "monthly" && monthlyData && (
+        <>
+          {/* Compliance Score Hero */}
+          <div className="ios-card bg-[var(--color-brand)] border-none p-5 text-white relative overflow-hidden flex justify-between items-center">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-xl"></div>
+            <div>
+              <p className="text-white/80 font-bold uppercase tracking-wider text-[11px] mb-1">50/30/20 Compliance</p>
+              <h2 className="sf-rounded text-4xl font-extrabold tracking-tighter">
+                {monthlyData.summary.score}%
+              </h2>
+              <p className="text-white/90 font-medium text-[13px] mt-1">
+                {monthlyData.summary.score > 80 ? "Excellent budget discipline! 🎉" : 
+                 monthlyData.summary.score > 50 ? "Doing okay, room for improvement." : "Straying off the path. ⚠️"}
+              </p>
+            </div>
+          </div>
+
+          {/* 50/30/20 Chart */}
+          <div className="ios-card p-5">
+            <h3 className="font-bold text-[16px] font-['Clash_Grotesk'] mb-4">Budget Utilization</h3>
+            {monthlyData.budgetVsActual.length > 0 ? (
+              <div className="space-y-4">
+                <div className="flex justify-between gap-2 h-4 mb-2 rounded-full overflow-hidden">
+                  {monthlyData.budgetVsActual.map((item) => (
+                    <div 
+                      key={item.type} 
+                      style={{ 
+                        width: `${Math.max(5, (item.actual / (monthlyData.summary.totalExpense || 1)) * 100)}%`, 
+                        backgroundColor: item.color 
+                      }} 
                     />
-                    <ReferenceLine y={budgetConfig.weeklyLimit} stroke="var(--color-expense)" strokeDasharray="4 4" />
-                    <Bar dataKey="spend" radius={[4, 4, 0, 0]} barSize={30}>
-                      {monthlyData.weeklyAnalysis.map((entry, index) => (
-                        <cell key={`cell-${index}`} fill={entry.ratio > 100 ? "var(--color-expense)" : entry.ratio > 70 ? "var(--color-want)" : "var(--color-brand)"} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <h3 className="font-semibold text-[17px] mb-2 px-2 mt-6">Week by Week</h3>
-            <div className="ios-list">
-              {monthlyData.weeklyAnalysis.map((w) => (
-                <div key={w.week} className="ios-list-item flex-col items-stretch p-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-medium text-[15px]">{w.weekLabel}</span>
-                    <span className="font-semibold text-[15px]">{formatCurrency(w.spend)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[12px] text-[var(--color-gray-1)]">{w.start} - {w.end}</span>
-                    <span className={cn(
-                      "text-[12px] font-medium",
-                      w.ratio > 100 ? "text-[var(--color-expense)]" : w.ratio > 70 ? "text-[var(--color-want)]" : "text-[var(--color-income)]"
-                    )}>
-                      {w.ratio}% of limit
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </TabsContent>
-
-          {/* ─── MONTHLY ─── */}
-          <TabsContent value="monthly" className="space-y-6 m-0">
-            {/* Monthly Score */}
-            <div className="ios-list p-4 flex items-center gap-4">
-              <div className="h-16 w-16 rounded-full bg-[var(--color-gray-5)] flex items-center justify-center shrink-0">
-                <Activity className="h-8 w-8 text-[var(--color-brand)]" />
-              </div>
-              <div className="flex-1">
-                <p className="text-[12px] font-semibold text-[var(--color-gray-1)] uppercase">Health Score</p>
-                <p className="text-[32px] sf-rounded font-bold leading-none mt-1">
-                  {monthlyData.summary.score}<span className="text-[20px] text-[var(--color-gray-1)]">/10</span>
-                </p>
-              </div>
-            </div>
-
-            {/* Daily Spending Area Chart */}
-            <div className="ios-list p-4 overflow-hidden">
-              <h3 className="font-semibold text-[17px] mb-4">Daily Trend</h3>
-              <div className="h-[180px] -mx-2 overflow-hidden">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={monthlyData.daily}>
-                    <defs>
-                      <linearGradient id="dailyGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--color-brand)" stopOpacity={0.2} />
-                        <stop offset="100%" stopColor="var(--color-brand)" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis dataKey="formattedDate" tick={{ fontSize: 10, fill: "var(--color-gray-1)" }} tickLine={false} axisLine={false} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "var(--color-card)", border: "none", borderRadius: "8px", boxShadow: "0 2px 8px rgba(0,0,0,0.1)", fontSize: "12px", fontWeight: "600" }}
-                      itemStyle={{ color: "var(--color-foreground)" }}
-                      formatter={(v) => [`₹${v.toLocaleString("en-IN")}`, "Spent"]}
-                      labelFormatter={(l) => `Day ${l}`}
-                      cursor={{ stroke: 'var(--color-gray-3)', strokeDasharray: '3 3' }}
-                    />
-                    <Area type="monotone" dataKey="amount" stroke="var(--color-brand)" strokeWidth={3} fill="url(#dailyGrad)" activeDot={{ r: 6, strokeWidth: 0, fill: "var(--color-brand)" }} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Category Breakdown */}
-            {monthlyData.catBreakdown.length > 0 && (
-              <div>
-                <h3 className="font-semibold text-[17px] mb-2 px-2">Top Spending</h3>
-                <div className="ios-list">
-                  {monthlyData.catBreakdown.map((cat, i) => (
-                    <div key={cat.category} className="ios-list-item flex-col items-stretch p-3">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="font-medium text-[15px]">{cat.category}</span>
-                        <span className="font-semibold text-[15px]">{formatCurrency(cat.amount)}</span>
-                      </div>
-                      <Progress value={cat.percentage} className="h-1.5 bg-[var(--color-gray-5)] [&>div]:bg-[var(--color-brand)]" />
-                    </div>
                   ))}
                 </div>
+                <div className="grid grid-cols-3 gap-2">
+                   {monthlyData.budgetVsActual.map((item) => (
+                     <div key={item.type} className="text-center">
+                       <div className="h-2.5 w-2.5 rounded-full inline-block mr-1.5" style={{ backgroundColor: item.color }} />
+                       <span className="text-[12px] font-bold text-[var(--color-gray-1)]">{item.label}</span>
+                       <p className="text-[14px] font-extrabold sf-rounded mt-1" style={{ color: item.color }}>
+                         {item.percentage}%
+                       </p>
+                       <p className="text-[10px] font-semibold text-[var(--color-gray-2)]">
+                         {formatCurrency(item.actual)}
+                       </p>
+                     </div>
+                   ))}
+                </div>
               </div>
+            ) : (
+              <p className="text-[13px] text-[var(--color-gray-1)] text-center py-2 font-medium">Log your income this month to see budget insights.</p>
             )}
-          </TabsContent>
+          </div>
 
-          {/* ─── YEARLY ─── */}
-          <TabsContent value="yearly" className="space-y-6 m-0">
-            {/* Savings Trend */}
-            <div className="ios-list p-4 overflow-hidden">
-              <h3 className="font-semibold text-[17px] mb-4">Savings Trend</h3>
-              <div className="h-[180px] -mx-2 overflow-hidden">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={yearlyData}>
-                    <defs>
-                      <linearGradient id="savingsGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--color-income)" stopOpacity={0.2} />
-                        <stop offset="100%" stopColor="var(--color-income)" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: "var(--color-gray-1)" }} tickLine={false} axisLine={false} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "var(--color-card)", border: "none", borderRadius: "8px", boxShadow: "0 2px 8px rgba(0,0,0,0.1)", fontSize: "12px", fontWeight: "600" }}
-                      itemStyle={{ color: "var(--color-foreground)" }}
-                      formatter={(v) => [`₹${v.toLocaleString("en-IN")}`, "Savings"]}
-                    />
-                    <Area type="monotone" dataKey="savings" stroke="var(--color-income)" strokeWidth={3} fill="url(#savingsGrad)" activeDot={{ r: 6, strokeWidth: 0, fill: "var(--color-income)" }} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
+          {/* Weekly Spending Trend */}
+          <div className="ios-card p-5">
+            <h3 className="font-bold text-[16px] font-['Clash_Grotesk'] mb-4">Weekly Spending</h3>
+            <div className="h-[200px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthlyData.weeklyAnalysis} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+                  <XAxis dataKey="weekLabel" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "var(--color-gray-1)", fontWeight: 600 }} dy={10} />
+                  <Tooltip
+                    cursor={{ fill: "var(--color-gray-5)" }}
+                    contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)", backgroundColor: "var(--color-card)", color: "var(--color-foreground)", fontWeight: "bold" }}
+                    itemStyle={{ color: "var(--color-foreground)" }}
+                    formatter={(v) => [`₹${v.toLocaleString("en-IN")}`, "Spent"]}
+                  />
+                  <ReferenceLine y={monthlyData.dynamicBudget > 0 ? Math.round(monthlyData.dynamicBudget / 4) : 10000} stroke="var(--color-expense)" strokeDasharray="4 4" />
+                  <Bar dataKey="spend" radius={[6, 6, 0, 0]} barSize={24}>
+                    {monthlyData.weeklyAnalysis.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.ratio > 100 ? "var(--color-expense)" : "var(--color-brand)"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
+          </div>
 
-            {/* Income vs Expense Bars */}
-            <div className="ios-list p-4 overflow-hidden">
-              <h3 className="font-semibold text-[17px] mb-4">Cash Flow</h3>
-              <div className="h-[200px] -mx-2 overflow-hidden">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={yearlyData}>
-                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: "var(--color-gray-1)" }} tickLine={false} axisLine={false} />
-                    <Tooltip
-                      cursor={{fill: "transparent"}}
-                      contentStyle={{ backgroundColor: "var(--color-card)", border: "none", borderRadius: "8px", boxShadow: "0 2px 8px rgba(0,0,0,0.1)", fontSize: "12px", fontWeight: "600" }}
-                      itemStyle={{ color: "var(--color-foreground)" }}
-                      formatter={(v) => [`₹${v.toLocaleString("en-IN")}`]}
-                    />
-                    <Bar dataKey="income" fill="var(--color-income)" radius={[4, 4, 0, 0]} name="Income" barSize={10} />
-                    <Bar dataKey="expense" fill="var(--color-expense)" radius={[4, 4, 0, 0]} name="Expense" barSize={10} />
-                  </BarChart>
-                </ResponsiveContainer>
+          {/* Category Breakdown */}
+          <div className="ios-card p-5">
+            <h3 className="font-bold text-[16px] font-['Clash_Grotesk'] mb-4">Category Breakdown</h3>
+            {monthlyData.categoryData.length > 0 ? (
+              <div className="space-y-3">
+                {monthlyData.categoryData.slice(0, 5).map((cat) => (
+                  <div key={cat.category}>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
+                        <span className="text-[13px] font-semibold">{cat.category}</span>
+                      </div>
+                      <span className="text-[13px] font-bold text-[var(--color-foreground)]">{formatCurrency(cat.amount)}</span>
+                    </div>
+                    <div className="h-2 w-full bg-[var(--color-gray-6)] rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${cat.percentage}%`, backgroundColor: cat.color }} />
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-          </TabsContent>
+            ) : (
+              <p className="text-[13px] text-[var(--color-gray-1)] text-center py-4 font-medium">No expenses this month</p>
+            )}
+          </div>
+        </>
+      )}
+
+      {timeframe === "yearly" && yearlyData && (
+        <div className="ios-card p-5">
+          <h3 className="font-bold text-[16px] font-['Clash_Grotesk'] mb-4">Yearly Trend</h3>
+          <div className="h-[250px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={yearlyData.trend} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "var(--color-gray-1)", fontWeight: 600 }} dy={10} />
+                <Tooltip
+                  cursor={{ fill: "var(--color-gray-5)" }}
+                  contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)", backgroundColor: "var(--color-card)", color: "var(--color-foreground)", fontWeight: "bold" }}
+                  itemStyle={{ color: "var(--color-foreground)" }}
+                />
+                <Bar dataKey="income" fill="var(--color-income)" radius={[4, 4, 0, 0]} name="Income" />
+                <Bar dataKey="expense" fill="var(--color-expense)" radius={[4, 4, 0, 0]} name="Expense" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-      </Tabs>
+      )}
     </div>
   );
 }

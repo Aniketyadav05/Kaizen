@@ -1,25 +1,36 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ArrowUpRight, ArrowDownRight, Calendar, Tag, CreditCard } from "lucide-react";
+import { X, ArrowUpRight, ArrowDownRight, ArrowLeftRight, Calendar, CreditCard, ChevronDown } from "lucide-react";
 import useTransactionStore from "@/stores/useTransactionStore";
 import useCategoryStore from "@/stores/useCategoryStore";
-import { transactionSchema, incomeSchema } from "@/lib/validators";
+import useAccountStore from "@/stores/useAccountStore";
+import { transactionSchema, incomeSchema, transferSchema } from "@/lib/validators";
 import { getIcon } from "@/lib/iconMap";
 import { cn } from "@/lib/utils";
-import { DEFAULT_PAYMENT_METHODS, DEFAULT_INCOME_SOURCES } from "@/lib/seedData";
+import { DEFAULT_INCOME_SOURCES } from "@/lib/seedData";
 
 export default function AddTransactionSheet({ open, onOpenChange, editTransaction = null }) {
-  const [mode, setMode] = useState("expense"); // "expense" | "income"
+  const [mode, setMode] = useState("expense"); // "expense" | "income" | "transfer"
+  const [showNotes, setShowNotes] = useState(false);
+  
   const categories = useCategoryStore((s) => s.categories);
-  const paymentMethods = DEFAULT_PAYMENT_METHODS;
+  const accounts = useAccountStore((s) => s.accounts);
   const incomeSources = DEFAULT_INCOME_SOURCES;
+  
   const addTransaction = useTransactionStore((s) => s.addTransaction);
   const updateTransaction = useTransactionStore((s) => s.updateTransaction);
+  const lastUsedAccount = useTransactionStore((s) => s.lastUsedAccount);
+  const lastUsedCategory = useTransactionStore((s) => s.lastUsedCategory);
 
-  const schema = mode === "expense" ? transactionSchema : incomeSchema;
+  const defaultAccount = useMemo(() => {
+    if (lastUsedAccount && accounts.some(a => a.name === lastUsedAccount)) return lastUsedAccount;
+    return accounts.find(a => a.type === 'bank')?.name || accounts[0]?.name || "";
+  }, [lastUsedAccount, accounts]);
+
+  const schema = mode === "expense" ? transactionSchema : (mode === "income" ? incomeSchema : transferSchema);
 
   const {
     register,
@@ -33,10 +44,12 @@ export default function AddTransactionSheet({ open, onOpenChange, editTransactio
     defaultValues: {
       date: format(new Date(), "yyyy-MM-dd"),
       description: "",
-      category: "",
+      category: lastUsedCategory || "",
       source: "",
       amount: "",
-      paymentMethod: "",
+      account: defaultAccount,
+      fromAccount: defaultAccount,
+      toAccount: accounts.find(a => a.type === 'cash')?.name || "",
       budgetType: "Want",
       type: "expense",
       notes: "",
@@ -45,8 +58,10 @@ export default function AddTransactionSheet({ open, onOpenChange, editTransactio
 
   const selectedCategory = watch("category");
   const selectedSource = watch("source");
+  const currentBudgetType = watch("budgetType");
+  const amountValue = watch("amount");
 
-  // Auto-set budget type when category changes
+  // Auto-set budget type when category changes (but user can override)
   useEffect(() => {
     if (mode === "expense" && selectedCategory) {
       const cat = categories.find((c) => c.name === selectedCategory);
@@ -59,10 +74,11 @@ export default function AddTransactionSheet({ open, onOpenChange, editTransactio
   // Populate form for editing
   useEffect(() => {
     if (editTransaction) {
-      setMode(editTransaction.type === "income" ? "income" : "expense");
+      setMode(editTransaction.type);
       Object.entries(editTransaction).forEach(([key, value]) => {
         setValue(key, value);
       });
+      if (editTransaction.notes) setShowNotes(true);
     }
   }, [editTransaction, setValue]);
 
@@ -72,27 +88,36 @@ export default function AddTransactionSheet({ open, onOpenChange, editTransactio
       reset({
         date: format(new Date(), "yyyy-MM-dd"),
         description: "",
-        category: "",
+        category: lastUsedCategory || "",
         source: "",
         amount: "",
-        paymentMethod: paymentMethods[0]?.name || "",
+        account: defaultAccount,
+        fromAccount: defaultAccount,
+        toAccount: accounts.find(a => a.type === 'cash')?.name || "",
         budgetType: "Want",
-        type: "expense",
+        type: mode,
         notes: "",
       });
+      setShowNotes(false);
     }
-  }, [open, editTransaction, reset, paymentMethods]);
+  }, [open, editTransaction, reset, defaultAccount, lastUsedCategory, mode, accounts]);
 
   const onSubmit = (data) => {
     if (editTransaction) {
       updateTransaction(editTransaction.id, data);
     } else {
-      addTransaction({
-        ...data,
-        category: mode === "income" ? data.source : data.category,
-        description: data.description || (mode === "income" ? data.source : ""),
-        type: mode
-      });
+      let finalData = { ...data, type: mode };
+      
+      if (mode === "expense") {
+        finalData.description = data.description || data.category;
+      } else if (mode === "income") {
+        finalData.category = data.source;
+        finalData.description = data.description || data.source;
+      } else if (mode === "transfer") {
+        finalData.description = data.description || `Transfer to ${data.toAccount}`;
+      }
+      
+      addTransaction(finalData);
     }
     onOpenChange(false);
     reset();
@@ -104,7 +129,6 @@ export default function AddTransactionSheet({ open, onOpenChange, editTransactio
     <AnimatePresence>
       {open && (
         <>
-          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -113,25 +137,22 @@ export default function AddTransactionSheet({ open, onOpenChange, editTransactio
             onClick={() => onOpenChange(false)}
           />
 
-          {/* Gamified Sheet */}
           <motion.div
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 350 }}
-            className="fixed bottom-0 left-0 right-0 z-[101] max-h-[92vh] overflow-y-auto rounded-t-[32px] bg-[var(--color-background)] shadow-2xl"
+            className="fixed bottom-0 left-0 right-0 z-[101] max-h-[92vh] overflow-y-auto rounded-t-[28px] bg-[var(--color-background)] shadow-2xl"
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
           >
-            <div className="px-6 pb-8">
-              {/* Handle */}
-              <div className="flex justify-center pt-4 pb-2">
+            <div className="px-5 pb-6 pt-3">
+              <div className="flex justify-center pb-2">
                 <div className="h-1.5 w-12 rounded-full bg-[var(--color-gray-4)]" />
               </div>
 
-              {/* Header */}
-              <div className="flex items-center justify-between mb-6 mt-2">
+              <div className="flex items-center justify-between mb-4">
                 <h2 className="text-2xl font-bold font-['Clash_Grotesk']">
-                  {editTransaction ? "Edit" : "New"} {mode === "income" ? "Income" : "Expense"}
+                  {editTransaction ? "Edit" : "Add"}
                 </h2>
                 <button
                   onClick={() => onOpenChange(false)}
@@ -141,131 +162,175 @@ export default function AddTransactionSheet({ open, onOpenChange, editTransactio
                 </button>
               </div>
 
-              {/* Segmented Control */}
               {!editTransaction && (
-                <div className="flex bg-[var(--color-gray-6)] rounded-2xl p-1 mb-8 shadow-inner border border-[var(--color-border)]">
+                <div className="flex bg-[var(--color-gray-6)] rounded-[14px] p-1 mb-5 shadow-inner border border-[var(--color-border)]">
                   <button
                     type="button"
-                    onClick={() => setMode("expense")}
+                    onClick={() => { setMode("expense"); setValue("type", "expense"); }}
                     className={cn(
-                      "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all",
-                      mode === "expense"
-                        ? "bg-[var(--color-card)] shadow-sm text-[var(--color-expense)]"
-                        : "text-[var(--color-gray-1)]"
+                      "flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-[10px] font-bold text-[14px] transition-all",
+                      mode === "expense" ? "bg-[var(--color-card)] shadow-sm text-[var(--color-expense)]" : "text-[var(--color-gray-1)]"
                     )}
                   >
-                    <ArrowDownRight className="h-5 w-5" strokeWidth={2.5} />
-                    Expense
+                    <ArrowDownRight className="h-4 w-4" strokeWidth={2.5} /> Expense
                   </button>
                   <button
                     type="button"
-                    onClick={() => setMode("income")}
+                    onClick={() => { setMode("transfer"); setValue("type", "transfer"); }}
                     className={cn(
-                      "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all",
-                      mode === "income"
-                        ? "bg-[var(--color-card)] shadow-sm text-[var(--color-income)]"
-                        : "text-[var(--color-gray-1)]"
+                      "flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-[10px] font-bold text-[14px] transition-all",
+                      mode === "transfer" ? "bg-[var(--color-card)] shadow-sm text-[var(--color-brand)]" : "text-[var(--color-gray-1)]"
                     )}
                   >
-                    <ArrowUpRight className="h-5 w-5" strokeWidth={2.5} />
-                    Income
+                    <ArrowLeftRight className="h-4 w-4" strokeWidth={2.5} /> Transfer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setMode("income"); setValue("type", "income"); }}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-[10px] font-bold text-[14px] transition-all",
+                      mode === "income" ? "bg-[var(--color-card)] shadow-sm text-[var(--color-income)]" : "text-[var(--color-gray-1)]"
+                    )}
+                  >
+                    <ArrowUpRight className="h-4 w-4" strokeWidth={2.5} /> Income
                   </button>
                 </div>
               )}
 
-              <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); }}>
-                {/* Massive Amount Input */}
-                <div className="text-center py-2 relative">
+              <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); }}>
+                {/* Amount Input */}
+                <div className="text-center">
                   <div className="flex items-center justify-center gap-1">
-                    <span className="text-4xl font-bold text-[var(--color-gray-2)]">₹</span>
+                    <span className="text-3xl font-bold text-[var(--color-gray-2)]">₹</span>
                     <input
                       type="number"
                       placeholder="0"
                       {...register("amount")}
                       className={cn(
-                        "text-[64px] sf-rounded font-extrabold bg-transparent outline-none text-center w-full placeholder:text-[var(--color-gray-4)]",
-                        mode === "expense" ? "text-[var(--color-expense)]" : "text-[var(--color-income)]"
+                        "text-[56px] sf-rounded font-extrabold bg-transparent outline-none text-center w-full placeholder:text-[var(--color-gray-4)] transition-colors",
+                        mode === "expense" && amountValue ? "text-[var(--color-expense)]" : "",
+                        mode === "income" && amountValue ? "text-[var(--color-income)]" : "",
+                        mode === "transfer" && amountValue ? "text-[var(--color-brand)]" : ""
                       )}
                       autoFocus
                     />
                   </div>
-                  {errors.amount && <p className="text-[15px] font-bold text-[var(--color-expense)] mt-2">{errors.amount.message}</p>}
+                  {errors.amount && <p className="text-[13px] font-bold text-[var(--color-expense)] mt-1">{errors.amount.message}</p>}
                 </div>
 
-                {/* Description (Playful Input) */}
-                <div>
-                  <input
-                    placeholder={mode === "expense" ? "What was this for?" : "Source of income"}
-                    {...register("description")}
-                    className="w-full bg-[var(--color-gray-5)] rounded-2xl p-4 text-lg font-bold outline-none focus:ring-2 focus:ring-[var(--color-brand)] placeholder:text-[var(--color-gray-2)] text-center shadow-inner"
-                  />
-                  {errors.description && <p className="text-[13px] font-bold text-[var(--color-expense)] text-center mt-2">{errors.description.message}</p>}
-                </div>
-
-                {/* Grid Pickers */}
-                <div className="pt-2">
-                  <h3 className="text-[14px] font-bold text-[var(--color-gray-1)] uppercase tracking-wide mb-3 pl-1">
-                    {mode === "expense" ? "Category" : "Income Source"}
-                  </h3>
-                  <div className="grid grid-cols-4 gap-3">
-                    {(mode === "expense" ? categories : incomeSources).map((item) => {
-                      const Icon = getIcon(item.icon);
-                      const isSelected = mode === "expense" ? selectedCategory === item.name : selectedSource === item.name;
-
-                      return (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => mode === "expense" ? setValue("category", item.name, { shouldValidate: true }) : setValue("source", item.name, { shouldValidate: true })}
-                          className={cn(
-                            "flex flex-col items-center justify-center gap-2 aspect-square rounded-[20px] transition-all font-bold border-2",
-                            isSelected
-                              ? "border-[var(--color-brand)] opacity-100 scale-105 bg-transparent"
-                              : "border-transparent bg-[var(--color-gray-5)] text-[var(--color-foreground)] active:scale-95"
-                          )}
-                        >
-                          {isSelected && <div className="absolute inset-0 bg-[var(--color-brand)] opacity-10 rounded-[18px]" />}
-                          <Icon className="h-7 w-7" style={{ color: isSelected ? 'var(--color-brand)' : item.color }} strokeWidth={2.5} />
-                          <span className="text-[11px] truncate w-full px-1 text-center">{item.name}</span>
+                {/* Explicit Need/Want/Saving (Only for Expense) */}
+                {mode === "expense" && (
+                  <div>
+                    <h3 className="text-[12px] font-bold text-[var(--color-gray-1)] uppercase tracking-wide pl-1 mb-2">
+                      Budget Allocation
+                    </h3>
+                    <div className="flex bg-[var(--color-gray-6)] rounded-[14px] p-1 shadow-inner border border-[var(--color-border)]">
+                      {["Need", "Want", "Saving"].map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setValue("budgetType", type)}
+                        className={cn(
+                          "flex-1 py-2 rounded-[10px] font-bold text-[13px] transition-all uppercase tracking-wide",
+                          currentBudgetType === type
+                            ? `bg-[var(--color-card)] shadow-sm text-[var(--color-${type.toLowerCase()})] ring-1 ring-[var(--color-${type.toLowerCase()})]/30`
+                            : "text-[var(--color-gray-1)]"
+                        )}
+                      >
+                        {type}
                         </button>
-                      );
-                    })}
-                  </div>
-                  {(errors.category || errors.source) && (
-                    <p className="text-[14px] font-bold text-[var(--color-expense)] mt-2 text-center">Please select a category</p>
-                  )}
-                </div>
-
-                {/* Additional Details (Date, Payment) */}
-                <div className="grid grid-cols-2 gap-3 pt-2">
-                  <div className="bg-[var(--color-gray-5)] rounded-2xl p-3 flex items-center gap-2 relative">
-                    <Calendar className="h-5 w-5 text-[var(--color-gray-1)]" />
-                    <input
-                      type="date"
-                      {...register("date")}
-                      className="bg-transparent border-none outline-none font-bold text-[15px] w-full"
-                    />
-                  </div>
-                  <div className="bg-[var(--color-gray-5)] rounded-2xl p-3 flex items-center gap-2 relative">
-                    <CreditCard className="h-5 w-5 text-[var(--color-gray-1)] shrink-0" />
-                    <select
-                      {...register("paymentMethod")}
-                      className="bg-transparent border-none outline-none font-bold text-[15px] w-full appearance-none pr-6 cursor-pointer text-ellipsis overflow-hidden"
-                    >
-                      {paymentMethods.map((pm) => (
-                        <option key={pm.id} value={pm.name}>{pm.name}</option>
                       ))}
-                    </select>
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Submit */}
-                <div className="pt-4">
-                  <button 
-                    onClick={handleSubmit(onSubmit)}
-                    className="w-full duo-btn duo-btn-primary !text-xl !py-4"
-                  >
-                    {editTransaction ? "Update" : "Save"} {mode === "income" ? "Income" : "Expense"}
+                {/* Category / Income Source — Horizontal Scroll */}
+                {mode !== "transfer" && (
+                  <div>
+                    <h3 className="text-[12px] font-bold text-[var(--color-gray-1)] uppercase tracking-wide pl-1 mb-2">
+                      {mode === "expense" ? "Category" : "Source"}
+                    </h3>
+                    <div className="category-scroll pb-1">
+                      {(mode === "expense" ? categories : incomeSources).map((item) => {
+                        const Icon = getIcon(item.icon);
+                        const isSelected = mode === "expense" ? selectedCategory === item.name : selectedSource === item.name;
+
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => mode === "expense" ? setValue("category", item.name, { shouldValidate: true }) : setValue("source", item.name, { shouldValidate: true })}
+                            className={cn(
+                              "flex flex-col items-center justify-center gap-1.5 min-w-[72px] w-[72px] py-3 rounded-[16px] transition-all font-bold border-2",
+                              isSelected
+                                ? "border-[var(--color-brand)] bg-[var(--color-brand)]/10"
+                                : "border-transparent bg-[var(--color-gray-5)] active:bg-[var(--color-gray-4)]"
+                            )}
+                          >
+                            <Icon className="h-6 w-6" style={{ color: isSelected ? 'var(--color-brand)' : item.color }} strokeWidth={2} />
+                            <span className="text-[10px] leading-tight truncate w-full px-0.5 text-center font-semibold">
+                              {item.name.length > 12 ? item.name.split(" ")[0] : item.name}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {(errors.category || errors.source) && (
+                      <p className="text-[13px] font-bold text-[var(--color-expense)] mt-1 pl-1">Selection required</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Account Selection */}
+                {mode === "transfer" ? (
+                  <div className="grid grid-cols-2 gap-3 bg-[var(--color-gray-6)] p-3 rounded-2xl border border-[var(--color-border)]">
+                    <div>
+                      <p className="text-[11px] font-bold text-[var(--color-gray-1)] uppercase tracking-wider mb-1 pl-1">From</p>
+                      <select {...register("fromAccount")} className="w-full bg-[var(--color-card)] rounded-xl p-2.5 font-bold text-[14px] outline-none border border-[var(--color-border)]">
+                        {accounts.map(a => <option key={a.id} value={a.name}>{a.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-[var(--color-gray-1)] uppercase tracking-wider mb-1 pl-1">To</p>
+                      <select {...register("toAccount")} className="w-full bg-[var(--color-card)] rounded-xl p-2.5 font-bold text-[14px] outline-none border border-[var(--color-border)]">
+                        {accounts.map(a => <option key={a.id} value={a.name}>{a.name}</option>)}
+                      </select>
+                    </div>
+                    {errors.toAccount && <p className="col-span-2 text-[12px] font-bold text-[var(--color-expense)] mt-1">{errors.toAccount.message}</p>}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 bg-[var(--color-gray-6)] p-1.5 rounded-2xl border border-[var(--color-border)]">
+                    <div className="flex-1 flex items-center gap-2 bg-[var(--color-card)] rounded-xl p-2.5 border border-[var(--color-border)]">
+                      <CreditCard className="h-4 w-4 text-[var(--color-brand)] shrink-0" />
+                      <select {...register("account")} className="bg-transparent border-none outline-none font-bold text-[14px] w-full appearance-none pr-4">
+                        {accounts.map(a => <option key={a.id} value={a.name}>{a.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex-1 flex items-center gap-2 bg-[var(--color-card)] rounded-xl p-2.5 border border-[var(--color-border)]">
+                      <Calendar className="h-4 w-4 text-[var(--color-brand)] shrink-0" />
+                      <input type="date" {...register("date")} className="bg-transparent border-none outline-none font-bold text-[14px] w-full" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Transfer Date (if in transfer mode) */}
+                {mode === "transfer" && (
+                  <div className="flex items-center gap-2 bg-[var(--color-gray-5)] rounded-xl p-3">
+                    <Calendar className="h-4 w-4 text-[var(--color-brand)] shrink-0" />
+                    <input type="date" {...register("date")} className="bg-transparent border-none outline-none font-bold text-[14px] w-full" />
+                  </div>
+                )}
+
+                {/* Description (Optional) */}
+                <input
+                  placeholder={mode === "expense" ? "What was this for? (Optional)" : (mode === "income" ? "Note (Optional)" : "Transfer Note (Optional)")}
+                  {...register("description")}
+                  className="w-full bg-[var(--color-gray-5)] rounded-xl p-3.5 text-[15px] font-semibold outline-none focus:ring-2 focus:ring-[var(--color-brand)] placeholder:text-[var(--color-gray-2)]"
+                />
+
+                <div className="pt-2">
+                  <button onClick={handleSubmit(onSubmit)} className="w-full duo-btn duo-btn-primary !text-lg !py-4">
+                    Save {mode === "expense" ? "Expense" : (mode === "income" ? "Income" : "Transfer")}
                   </button>
                 </div>
               </form>

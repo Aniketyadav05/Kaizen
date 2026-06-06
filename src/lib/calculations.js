@@ -1,16 +1,8 @@
 /**
  * FinPilot — Financial Calculations Engine
  * 
- * All business logic from the Excel tracker, reimplemented as pure functions.
- * No side effects, no store access — pass data in, get results out.
- * 
- * Key formulas replicated:
- *   Budget(Need)  = FLOOR(Salary × 0.5, 1)
- *   Budget(Want)  = FLOOR(Salary × 0.3, 1)
- *   Budget(Save)  = CEIL(Salary × 0.2, 1)
- *   Weekly Ratio  = (Week Spend / Weekly Limit) × 100
- *   Amount Left   = Salary − Total Spend
- *   % Left        = Amount Left / Salary
+ * Strict 50/30/20 Math and Analytics.
+ * NOTE: Transactions with type "transfer" are completely excluded from all budget calculations.
  */
 
 import {
@@ -23,36 +15,44 @@ import {
   format,
   isWithinInterval,
   subMonths,
-  getWeek,
-  differenceInDays,
   addMonths,
 } from "date-fns";
 
 // ─── Budget Calculations ─────────────────────────────────────
 
-/**
- * Calculate 50/30/20 budget split from salary.
- * Matches Excel: FLOOR(salary*0.5), FLOOR(salary*0.3), CEIL(salary*0.2)
- */
-export function calculateBudgetSplit(salary, needsPct = 50, wantsPct = 30, savingsPct = 20) {
+export function calculateDynamicIncome(transactions, startDate, endDate) {
+  return filterTransactionsByDate(transactions, startDate, endDate)
+    .filter(t => t.type === "income")
+    .reduce((sum, t) => sum + Number(t.amount), 0);
+}
+
+export function calculateDynamicBudget(dynamicIncome, needsPercent, wantsPercent) {
+  const n = Number(needsPercent) || 50;
+  const w = Number(wantsPercent) || 30;
+  return Math.floor((dynamicIncome * (n + w)) / 100);
+}
+
+export function calculateBudgetSplit(dynamicIncome, needsPct, wantsPct, savingsPct) {
+  const n = Number(needsPct) || 50;
+  const w = Number(wantsPct) || 30;
+  const s = Number(savingsPct) || 20;
   return {
-    needs: Math.floor(salary * (needsPct / 100)),
-    wants: Math.floor(salary * (wantsPct / 100)),
-    savings: Math.ceil(salary * (savingsPct / 100)),
-    total: salary,
+    needs: Math.floor(dynamicIncome * (n / 100)),
+    wants: Math.floor(dynamicIncome * (w / 100)),
+    savings: Math.ceil(dynamicIncome * (s / 100)),
+    total: dynamicIncome,
   };
 }
 
-/**
- * Calculate budget vs actual spend for each type.
- * Returns array of { type, budget, actual, remaining, percentage }
- */
 export function calculateBudgetVsActual(transactions, budgetConfig, dateRange) {
-  const { salary, needsPercent, wantsPercent, savingsPercent } = budgetConfig;
-  const split = calculateBudgetSplit(salary, needsPercent, wantsPercent, savingsPercent);
+  const needsPercent = Number(budgetConfig.needsPercent) || 50;
+  const wantsPercent = Number(budgetConfig.wantsPercent) || 30;
+  const savingsPercent = Number(budgetConfig.savingsPercent) || 20;
+  const dynamicIncome = calculateDynamicIncome(transactions, dateRange.start, dateRange.end);
+  const split = calculateBudgetSplit(dynamicIncome, needsPercent, wantsPercent, savingsPercent);
 
   const filtered = filterTransactionsByDate(transactions, dateRange.start, dateRange.end);
-  const expenses = filtered.filter(t => t.amount > 0 && t.type !== "income");
+  const expenses = filtered.filter(t => t.type === "expense" && t.amount > 0);
 
   const needActual = sumByType(expenses, "Need");
   const wantActual = sumByType(expenses, "Want");
@@ -66,6 +66,7 @@ export function calculateBudgetVsActual(transactions, budgetConfig, dateRange) {
       actual: needActual,
       remaining: split.needs - needActual,
       percentage: split.needs > 0 ? Math.round((needActual / split.needs) * 100) : 0,
+      color: "var(--color-need)",
     },
     {
       type: "Want",
@@ -74,6 +75,7 @@ export function calculateBudgetVsActual(transactions, budgetConfig, dateRange) {
       actual: wantActual,
       remaining: split.wants - wantActual,
       percentage: split.wants > 0 ? Math.round((wantActual / split.wants) * 100) : 0,
+      color: "var(--color-want)",
     },
     {
       type: "Saving",
@@ -82,37 +84,28 @@ export function calculateBudgetVsActual(transactions, budgetConfig, dateRange) {
       actual: savingActual,
       remaining: split.savings - savingActual,
       percentage: split.savings > 0 ? Math.round((savingActual / split.savings) * 100) : 0,
+      color: "var(--color-saving)",
     },
   ];
 }
 
 // ─── Spending Calculations ───────────────────────────────────
 
-/**
- * Calculate total spending within a date range.
- */
 export function calculateTotalSpend(transactions, startDate, endDate) {
   return filterTransactionsByDate(transactions, startDate, endDate)
-    .filter(t => t.type !== "income")
+    .filter(t => t.type === "expense")
     .reduce((sum, t) => sum + t.amount, 0);
 }
 
-/**
- * Calculate total income within a date range.
- */
 export function calculateTotalIncome(transactions, startDate, endDate) {
   return filterTransactionsByDate(transactions, startDate, endDate)
     .filter(t => t.type === "income")
     .reduce((sum, t) => sum + t.amount, 0);
 }
 
-/**
- * Calculate spending grouped by category within a date range.
- * Returns sorted array of { category, amount, percentage, type }
- */
 export function calculateCategoryBreakdown(transactions, categories, startDate, endDate) {
   const filtered = filterTransactionsByDate(transactions, startDate, endDate)
-    .filter(t => t.type !== "income");
+    .filter(t => t.type === "expense");
   const total = filtered.reduce((sum, t) => sum + t.amount, 0);
 
   const grouped = {};
@@ -124,7 +117,7 @@ export function calculateCategoryBreakdown(transactions, categories, startDate, 
         amount: 0,
         color: cat?.color || "#64748b",
         icon: cat?.icon || "Circle",
-        type: cat?.type || t.budgetType || "Want",
+        type: t.budgetType || cat?.type || "Want",
       };
     }
     grouped[t.category].amount += t.amount;
@@ -138,10 +131,6 @@ export function calculateCategoryBreakdown(transactions, categories, startDate, 
     .sort((a, b) => b.amount - a.amount);
 }
 
-/**
- * Calculate daily spending for a month (for monthly analysis chart).
- * Returns array of { date, amount, formattedDate }
- */
 export function calculateDailySpending(transactions, month, year) {
   const start = startOfMonth(new Date(year, month));
   const end = endOfMonth(new Date(year, month));
@@ -150,7 +139,7 @@ export function calculateDailySpending(transactions, month, year) {
   return days.map((day) => {
     const dayTransactions = transactions.filter(
       (t) =>
-        t.type !== "income" &&
+        t.type === "expense" &&
         format(new Date(t.date), "yyyy-MM-dd") === format(day, "yyyy-MM-dd")
     );
     return {
@@ -164,20 +153,19 @@ export function calculateDailySpending(transactions, month, year) {
 
 // ─── Weekly Analysis ─────────────────────────────────────────
 
-/**
- * Calculate weekly spending analysis.
- * Replicates the Weekly Analysis sheet: week start/end, spend, limit, ratio.
- */
-export function calculateWeeklyAnalysis(transactions, weeklyLimit = 10000, month, year) {
+export function calculateWeeklyAnalysis(transactions, month, year, dynamicBudget) {
   const start = startOfMonth(new Date(year, month));
   const end = endOfMonth(new Date(year, month));
-  const weeks = eachWeekOfInterval({ start, end }, { weekStartsOn: 1 }); // Monday start
+  const weeks = eachWeekOfInterval({ start, end }, { weekStartsOn: 1 });
+  
+  // Distribute the dynamic budget evenly across the weeks
+  const weeklyLimit = dynamicBudget > 0 ? Math.round(dynamicBudget / weeks.length) : 0;
 
   return weeks.map((weekStart, index) => {
     const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
     const weekTransactions = transactions.filter(
       (t) =>
-        t.type !== "income" &&
+        t.type === "expense" &&
         isWithinInterval(new Date(t.date), { start: weekStart, end: weekEnd })
     );
     const spend = weekTransactions.reduce((sum, t) => sum + t.amount, 0);
@@ -198,45 +186,50 @@ export function calculateWeeklyAnalysis(transactions, weeklyLimit = 10000, month
   });
 }
 
-/**
- * Calculate current week's spending.
- */
 export function calculateCurrentWeekSpend(transactions) {
   const now = new Date();
   const start = startOfWeek(now, { weekStartsOn: 1 });
   const end = endOfWeek(now, { weekStartsOn: 1 });
 
   return filterTransactionsByDate(transactions, start, end)
-    .filter(t => t.type !== "income")
+    .filter(t => t.type === "expense")
     .reduce((sum, t) => sum + t.amount, 0);
 }
 
-// ─── Monthly Analysis ────────────────────────────────────────
+// ─── Monthly Analysis & 50/30/20 Compliance ────────────────────────────────────────
 
-/**
- * Calculate monthly summary (replicates Monthly Analysis sheet).
- */
 export function calculateMonthlySummary(transactions, budgetConfig, month, year) {
   const start = startOfMonth(new Date(year, month));
   const end = endOfMonth(new Date(year, month));
   const filtered = filterTransactionsByDate(transactions, start, end);
 
-  const expenses = filtered.filter(t => t.type !== "income");
+  const expenses = filtered.filter(t => t.type === "expense");
   const income = filtered.filter(t => t.type === "income");
+  
   const totalExpense = expenses.reduce((sum, t) => sum + t.amount, 0);
   const totalIncome = income.reduce((sum, t) => sum + t.amount, 0);
+  
   const savings = totalIncome - totalExpense;
   const savingsRate = totalIncome > 0 ? Math.round((savings / totalIncome) * 100) : 0;
 
   const split = calculateBudgetSplit(
-    budgetConfig.salary,
+    totalIncome, // Use dynamic income instead of budgetConfig.salary
     budgetConfig.needsPercent,
     budgetConfig.wantsPercent,
     budgetConfig.savingsPercent
   );
 
-  // Monthly score (1-10) based on budget adherence
-  const score = calculateMonthlyScore(totalExpense, budgetConfig.salary);
+  // 50/30/20 Compliance Score
+  const needSpend = sumByType(expenses, "Need");
+  const wantSpend = sumByType(expenses, "Want");
+  const savingSpend = sumByType(expenses, "Saving");
+  
+  const needScore = split.needs > 0 ? Math.max(0, 100 - Math.max(0, ((needSpend - split.needs) / split.needs) * 100)) : 0;
+  const wantScore = split.wants > 0 ? Math.max(0, 100 - Math.max(0, ((wantSpend - split.wants) / split.wants) * 100)) : 0;
+  // Saving score: you get 100% if you hit your target or more
+  const savingScore = split.savings > 0 ? Math.min(100, (savingSpend / split.savings) * 100) : 0;
+  
+  const score = Math.round((needScore + wantScore + savingScore) / 3);
 
   return {
     month: format(start, "MMM"),
@@ -248,7 +241,7 @@ export function calculateMonthlySummary(transactions, budgetConfig, month, year)
     budgetNeeds: split.needs,
     budgetWants: split.wants,
     budgetSavings: split.savings,
-    score,
+    score, // 0-100% compliance
     daysInMonth: eachDayOfInterval({ start, end }).length,
     averageDailySpend: eachDayOfInterval({ start, end }).length > 0
       ? Math.round(totalExpense / eachDayOfInterval({ start, end }).length)
@@ -256,31 +249,6 @@ export function calculateMonthlySummary(transactions, budgetConfig, month, year)
   };
 }
 
-/**
- * Calculate monthly score (1-10).
- * 10 = spent <= 60% of salary, 1 = spent > 120%
- */
-export function calculateMonthlyScore(totalExpense, salary) {
-  if (salary <= 0) return 5;
-  const ratio = totalExpense / salary;
-  if (ratio <= 0.5) return 10;
-  if (ratio <= 0.6) return 9;
-  if (ratio <= 0.7) return 8;
-  if (ratio <= 0.75) return 7;
-  if (ratio <= 0.8) return 6;
-  if (ratio <= 0.85) return 5;
-  if (ratio <= 0.9) return 4;
-  if (ratio <= 0.95) return 3;
-  if (ratio <= 1.0) return 2;
-  return 1;
-}
-
-// ─── Yearly Analysis ─────────────────────────────────────────
-
-/**
- * Calculate monthly trend for a full year.
- * Returns array of { month, income, expense, savings, savingsRate }
- */
 export function calculateYearlyTrend(transactions, year) {
   return Array.from({ length: 12 }, (_, i) => {
     const start = startOfMonth(new Date(year, i));
@@ -288,7 +256,7 @@ export function calculateYearlyTrend(transactions, year) {
     const filtered = filterTransactionsByDate(transactions, start, end);
 
     const expense = filtered
-      .filter(t => t.type !== "income")
+      .filter(t => t.type === "expense")
       .reduce((sum, t) => sum + t.amount, 0);
     const income = filtered
       .filter(t => t.type === "income")
@@ -305,61 +273,16 @@ export function calculateYearlyTrend(transactions, year) {
   });
 }
 
-/**
- * Calculate salary projection for next N years.
- * Replicates Setup sheet: salary * 1.1 each year
- */
-export function calculateSalaryProjection(currentSalary, growthRate = 10, years = 5) {
-  return Array.from({ length: years }, (_, i) => {
-    const salary = Math.round(currentSalary * Math.pow(1 + growthRate / 100, i));
-    const split = calculateBudgetSplit(salary);
-    return {
-      year: new Date().getFullYear() + i,
-      salary,
-      ...split,
-    };
-  });
-}
-
-// ─── Goal Calculations ───────────────────────────────────────
-
-/**
- * Calculate goal progress and ETA.
- */
-export function calculateGoalProgress(goal, monthlySavings = 0) {
-  const progress =
-    goal.targetAmount > 0
-      ? Math.min(100, Math.round((goal.currentAmount / goal.targetAmount) * 100))
-      : 0;
-  const remaining = Math.max(0, goal.targetAmount - goal.currentAmount);
-
-  let etaMonths = null;
-  if (monthlySavings > 0 && remaining > 0) {
-    etaMonths = Math.ceil(remaining / monthlySavings);
-  }
-
-  return {
-    ...goal,
-    progress,
-    remaining,
-    etaMonths,
-    etaDate: etaMonths ? format(addMonths(new Date(), etaMonths), "MMM yyyy") : null,
-  };
-}
-
 // ─── Payment Method Breakdown ────────────────────────────────
 
-/**
- * Calculate spending by payment method.
- */
 export function calculatePaymentMethodBreakdown(transactions, startDate, endDate) {
   const filtered = filterTransactionsByDate(transactions, startDate, endDate)
-    .filter(t => t.type !== "income");
+    .filter(t => t.type === "expense");
   const total = filtered.reduce((sum, t) => sum + t.amount, 0);
 
   const grouped = {};
   filtered.forEach((t) => {
-    const method = t.paymentMethod || "Other";
+    const method = t.account || t.paymentMethod || t.payment_method || "Other";
     if (!grouped[method]) {
       grouped[method] = { method, amount: 0 };
     }
@@ -374,71 +297,19 @@ export function calculatePaymentMethodBreakdown(transactions, startDate, endDate
     .sort((a, b) => b.amount - a.amount);
 }
 
-// ─── Calendar Heatmap Data ───────────────────────────────────
+// ─── Credit Card Bill ────────────────────────────────────────
 
-/**
- * Generate heatmap data for a year (like the Yearly Calendar sheet).
- */
-export function calculateCalendarHeatmap(transactions, year) {
-  const start = new Date(year, 0, 1);
-  const end = new Date(year, 11, 31);
-  const days = eachDayOfInterval({ start, end });
+export function calculateCreditCardBill(transactions, month, year) {
+  const start = startOfMonth(new Date(year, month));
+  const end = endOfMonth(new Date(year, month));
 
-  // Calculate max daily spend for normalization
-  const dailySpends = {};
-  transactions
-    .filter(t => t.type !== "income")
-    .forEach((t) => {
-      const key = format(new Date(t.date), "yyyy-MM-dd");
-      dailySpends[key] = (dailySpends[key] || 0) + t.amount;
-    });
-
-  const maxSpend = Math.max(1, ...Object.values(dailySpends));
-
-  return days.map((day) => {
-    const key = format(day, "yyyy-MM-dd");
-    const amount = dailySpends[key] || 0;
-    return {
-      date: key,
-      day: day.getDate(),
-      month: day.getMonth(),
-      dayOfWeek: day.getDay(),
-      amount,
-      intensity: amount > 0 ? Math.ceil((amount / maxSpend) * 4) : 0, // 0-4 scale
-    };
-  });
-}
-
-// ─── Comparison Helpers ──────────────────────────────────────
-
-/**
- * Compare current month to previous month.
- */
-export function calculateMonthComparison(transactions, currentMonth, currentYear) {
-  const prevDate = subMonths(new Date(currentYear, currentMonth), 1);
-
-  const currentStart = startOfMonth(new Date(currentYear, currentMonth));
-  const currentEnd = endOfMonth(new Date(currentYear, currentMonth));
-  const prevStart = startOfMonth(prevDate);
-  const prevEnd = endOfMonth(prevDate);
-
-  const currentExpense = calculateTotalSpend(transactions, currentStart, currentEnd);
-  const prevExpense = calculateTotalSpend(transactions, prevStart, prevEnd);
-  const currentIncome = calculateTotalIncome(transactions, currentStart, currentEnd);
-  const prevIncome = calculateTotalIncome(transactions, prevStart, prevEnd);
-
-  return {
-    currentExpense,
-    prevExpense,
-    expenseChange: prevExpense > 0
-      ? Math.round(((currentExpense - prevExpense) / prevExpense) * 100)
-      : 0,
-    currentIncome,
-    prevIncome,
-    incomeChange: prevIncome > 0
-      ? Math.round(((currentIncome - prevIncome) / prevIncome) * 100)
-      : 0,
-  };
+  return filterTransactionsByDate(transactions, start, end)
+    .filter(t => {
+      if (t.type === "income" || t.type === "transfer") return false;
+      const method = t.account || t.paymentMethod || t.payment_method || "";
+      return method === "Credit Card";
+    })
+    .reduce((sum, t) => sum + Number(t.amount), 0);
 }
 
 // ─── Utility Helpers ─────────────────────────────────────────
@@ -459,4 +330,49 @@ function sumByType(transactions, type) {
   return transactions
     .filter((t) => t.budgetType === type)
     .reduce((sum, t) => sum + t.amount, 0);
+}
+
+// ─── Missing Exports (Restored) ──────────────────────────────
+
+export function calculateGoalProgress(goal) {
+  const currentAmount = goal.currentAmount || 0;
+  const targetAmount = goal.targetAmount || 1;
+  const progress = Math.min(100, Math.round((currentAmount / targetAmount) * 100));
+  return { ...goal, progress };
+}
+
+export function calculateCalendarHeatmap(transactions, year) {
+  const start = new Date(year, 0, 1);
+  const end = new Date(year, 11, 31);
+  const days = eachDayOfInterval({ start, end });
+  
+  const dailyTotals = {};
+  transactions.forEach(t => {
+    if (t.type !== 'expense') return;
+    const dateStr = format(new Date(t.date), "yyyy-MM-dd");
+    dailyTotals[dateStr] = (dailyTotals[dateStr] || 0) + Number(t.amount);
+  });
+
+  const maxDaily = Math.max(...Object.values(dailyTotals), 1);
+
+  return days.map(day => {
+    const dateStr = format(day, "yyyy-MM-dd");
+    const amount = dailyTotals[dateStr] || 0;
+    
+    let intensity = 0;
+    if (amount > 0) {
+      const ratio = amount / maxDaily;
+      if (ratio > 0.75) intensity = 4;
+      else if (ratio > 0.5) intensity = 3;
+      else if (ratio > 0.25) intensity = 2;
+      else intensity = 1;
+    }
+
+    return {
+      date: dateStr,
+      amount,
+      intensity,
+      month: day.getMonth()
+    };
+  });
 }

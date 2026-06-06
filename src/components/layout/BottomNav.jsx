@@ -22,6 +22,7 @@ import {
   Target,
   Calendar,
   FileText,
+  Repeat,
   X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -34,8 +35,8 @@ const navItems = [
 ];
 
 const menuItems = [
-  { path: "/budget", icon: Wallet, label: "Budget" },
   { path: "/goals", icon: Target, label: "Goals" },
+  { path: "/sips", icon: Repeat, label: "SIPs" },
   { path: "/calendar", icon: Calendar, label: "Calendar" },
   { path: "/reports", icon: FileText, label: "Reports" },
   { path: "/settings", icon: Settings, label: "Settings" },

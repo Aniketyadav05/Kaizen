@@ -6,6 +6,7 @@
  * - Theme initialization
  * - Password lock screen
  * - Layout wrapper
+ * - SIP/CC notification checks on mount
  */
 
 import { lazy, Suspense, useEffect } from "react";
@@ -20,6 +21,8 @@ import useCategoryStore from "@/stores/useCategoryStore";
 import useBudgetStore from "@/stores/useBudgetStore";
 import useGoalStore from "@/stores/useGoalStore";
 import useSummaryStore from "@/stores/useSummaryStore";
+import useSIPStore from "@/stores/useSIPStore";
+import useReminderStore from "@/stores/useReminderStore";
 
 // Lazy load all pages
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
@@ -29,6 +32,7 @@ const Goals = lazy(() => import("@/pages/Goals"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const CalendarView = lazy(() => import("@/pages/CalendarView"));
 const Reports = lazy(() => import("@/pages/Reports"));
+const SIPs = lazy(() => import("@/pages/SIPs"));
 
 // Loading fallback
 function PageLoader() {
@@ -54,6 +58,10 @@ export default function App() {
   const fetchBudget = useBudgetStore((s) => s.fetchBudget);
   const fetchGoals = useGoalStore((s) => s.fetchGoals);
   const fetchSummariesAndMetadata = useSummaryStore((s) => s.fetchSummariesAndMetadata);
+  
+  const transactions = useTransactionStore((s) => s.transactions);
+  const checkPermissionStatus = useReminderStore((s) => s.checkPermissionStatus);
+  const checkAndNotify = useReminderStore((s) => s.checkAndNotify);
 
   useEffect(() => {
     fetchSummariesAndMetadata();
@@ -61,7 +69,28 @@ export default function App() {
     fetchCategories();
     fetchBudget();
     fetchGoals();
+    
+    // Check notification permission status
+    checkPermissionStatus();
   }, []);
+
+  // Check for SIP/CC reminders on mount and periodically
+  useEffect(() => {
+    // Delay initial check to let data load
+    const initialTimer = setTimeout(() => {
+      checkAndNotify(useSIPStore.getState(), transactions);
+    }, 3000);
+
+    // Hourly check while app is open
+    const interval = setInterval(() => {
+      checkAndNotify(useSIPStore.getState(), useTransactionStore.getState().transactions);
+    }, 60 * 60 * 1000); // Every hour
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
+  }, [transactions]);
 
   // Show lock screen if password is enabled and app is locked
   if (passwordEnabled && isLocked) {
@@ -82,6 +111,7 @@ export default function App() {
               <Route path="/calendar" element={<CalendarView />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/budget" element={<Settings />} />
+              <Route path="/sips" element={<SIPs />} />
             </Route>
           </Routes>
         </Suspense>

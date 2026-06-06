@@ -9,22 +9,35 @@ import { z } from "zod";
 
 export const transactionSchema = z.object({
   date: z.string().min(1, "Date is required"),
-  description: z.string().min(1, "Description is required").max(200),
+  description: z.string().max(200).optional().default(""),
   category: z.string().min(1, "Category is required"),
   amount: z.coerce.number().positive("Amount must be positive"),
-  paymentMethod: z.string().min(1, "Payment method is required"),
-  budgetType: z.enum(["Need", "Want", "Saving"]),
-  type: z.enum(["expense", "income"]).default("expense"),
+  account: z.string().min(1, "Account is required"), // Replaced paymentMethod
+  budgetType: z.enum(["Need", "Want", "Saving"]), // Explicit Needs/Wants/Savings
+  type: z.enum(["expense"]).default("expense"),
   notes: z.string().max(500).optional().default(""),
 });
 
 export const incomeSchema = z.object({
   date: z.string().min(1, "Date is required"),
-  description: z.string().min(1, "Description is required").max(200),
+  description: z.string().max(200).optional().default(""),
   source: z.string().min(1, "Income source is required"),
   amount: z.coerce.number().positive("Amount must be positive"),
-  paymentMethod: z.string().min(1, "Payment method is required"),
+  account: z.string().min(1, "Account is required"), // Replaced paymentMethod
+  type: z.enum(["income"]).default("income"),
   notes: z.string().max(500).optional().default(""),
+});
+
+export const transferSchema = z.object({
+  date: z.string().min(1, "Date is required"),
+  amount: z.coerce.number().positive("Amount must be positive"),
+  fromAccount: z.string().min(1, "From account is required"),
+  toAccount: z.string().min(1, "To account is required"),
+  type: z.enum(["transfer"]).default("transfer"),
+  notes: z.string().max(500).optional().default(""),
+}).refine(data => data.fromAccount !== data.toAccount, {
+  message: "Cannot transfer to the same account",
+  path: ["toAccount"],
 });
 
 export const categorySchema = z.object({
@@ -46,15 +59,25 @@ export const goalSchema = z.object({
 
 export const budgetConfigSchema = z.object({
   salary: z.coerce.number().min(0, "Salary must be 0 or more"),
+  monthlyBudget: z.coerce.number().min(0),
   needsPercent: z.coerce.number().min(0).max(100),
   wantsPercent: z.coerce.number().min(0).max(100),
   savingsPercent: z.coerce.number().min(0).max(100),
-  weeklyLimit: z.coerce.number().min(0),
   yearlyGrowthRate: z.coerce.number().min(0).max(100),
 }).refine(
   (data) => data.needsPercent + data.wantsPercent + data.savingsPercent === 100,
   { message: "Budget percentages must add up to 100%", path: ["needsPercent"] }
 );
+
+export const sipSchema = z.object({
+  name: z.string().min(1, "SIP name is required").max(100),
+  amount: z.coerce.number().positive("Amount must be positive"),
+  frequency: z.enum(["monthly", "quarterly"]).default("monthly"),
+  dayOfMonth: z.coerce.number().min(1).max(28, "Day must be 1-28"),
+  fundName: z.string().max(100).optional().default(""),
+  category: z.string().optional().default("SIP"), // Matches Saving type
+  notes: z.string().max(500).optional().default(""),
+});
 
 export const passwordSchema = z.object({
   password: z.string().min(4, "Password must be at least 4 characters").max(32),

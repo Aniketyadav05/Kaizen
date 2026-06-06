@@ -1,38 +1,44 @@
 /**
- * FinPilot — Default Categories, Payment Methods & Initial Config
+ * FinPilot — Default Categories, Accounts & Initial Config
  * 
- * These are the default values the app ships with.
- * Categories match the Excel tracker's structure:
- *   - Life Infrastructure → Need
- *   - Performance & Growth → Need
- *   - Lifestyle Enjoyment → Want
- *   - Relationships & Generosity → Want
- *   - Future Me → Saving
+ * Strict category-to-type defaults to enforce 50/30/20 methodology.
  */
 
 export const DEFAULT_CATEGORIES = [
+  // Needs
   { id: "cat-1", name: "Life Infrastructure", icon: "Home", color: "#3b82f6", type: "Need" },
-  { id: "cat-2", name: "Performance & Growth", icon: "TrendingUp", color: "#6366f1", type: "Need" },
-  { id: "cat-3", name: "Lifestyle Enjoyment", icon: "Sparkles", color: "#f43f5e", type: "Want" },
-  { id: "cat-4", name: "Relationships & Generosity", icon: "Heart", color: "#ec4899", type: "Want" },
-  { id: "cat-5", name: "Future Me", icon: "PiggyBank", color: "#10b981", type: "Saving" },
-  { id: "cat-6", name: "Food & Dining", icon: "UtensilsCrossed", color: "#f97316", type: "Want" },
-  { id: "cat-7", name: "Transport", icon: "Car", color: "#0ea5e9", type: "Need" },
-  { id: "cat-8", name: "Shopping", icon: "ShoppingBag", color: "#a855f7", type: "Want" },
-  { id: "cat-9", name: "Health & Fitness", icon: "Dumbbell", color: "#14b8a6", type: "Need" },
-  { id: "cat-10", name: "Education", icon: "GraduationCap", color: "#8b5cf6", type: "Need" },
+  { id: "cat-2", name: "Groceries", icon: "ShoppingCart", color: "#34C759", type: "Need" },
+  { id: "cat-3", name: "Rent & Housing", icon: "Building", color: "#2563eb", type: "Need" },
+  { id: "cat-4", name: "Electricity & Utilities", icon: "Zap", color: "#eab308", type: "Need" },
+  { id: "cat-5", name: "Mobile & Internet", icon: "Smartphone", color: "#0ea5e9", type: "Need" },
+  { id: "cat-6", name: "Fuel & Transport", icon: "Car", color: "#6366f1", type: "Need" },
+  { id: "cat-7", name: "Insurance", icon: "Shield", color: "#14b8a6", type: "Need" },
+  { id: "cat-8", name: "Education", icon: "GraduationCap", color: "#8b5cf6", type: "Need" },
+  
+  // Wants
+  { id: "cat-9", name: "Eating Out", icon: "UtensilsCrossed", color: "#f97316", type: "Want" },
+  { id: "cat-10", name: "Shopping", icon: "ShoppingBag", color: "#a855f7", type: "Want" },
   { id: "cat-11", name: "Entertainment", icon: "Gamepad2", color: "#e11d48", type: "Want" },
-  { id: "cat-12", name: "Bills & Utilities", icon: "Zap", color: "#eab308", type: "Need" },
+  { id: "cat-12", name: "Movies", icon: "Film", color: "#ec4899", type: "Want" },
+  { id: "cat-13", name: "Subscriptions", icon: "Repeat", color: "#7c3aed", type: "Want" },
+  { id: "cat-14", name: "Travel & Vacations", icon: "Plane", color: "#f43f5e", type: "Want" },
+  { id: "cat-15", name: "Gifts", icon: "Gift", color: "#e879f9", type: "Want" },
+  { id: "cat-16", name: "Grooming & Care", icon: "Scissors", color: "#f472b6", type: "Want" },
+  
+  // Savings
+  { id: "cat-17", name: "SIP", icon: "TrendingUp", color: "#059669", type: "Saving" },
+  { id: "cat-18", name: "Mutual Funds", icon: "PieChart", color: "#10b981", type: "Saving" },
+  { id: "cat-19", name: "Stocks", icon: "BarChart3", color: "#059669", type: "Saving" },
+  { id: "cat-20", name: "Emergency Fund", icon: "ShieldCheck", color: "#34C759", type: "Saving" },
+  { id: "cat-21", name: "FD & PPF", icon: "PiggyBank", color: "#10b981", type: "Saving" },
 ];
 
-export const DEFAULT_PAYMENT_METHODS = [
-  { id: "pm-1", name: "UPI", icon: "Smartphone" },
-  { id: "pm-2", name: "Credit Card", icon: "CreditCard" },
-  { id: "pm-3", name: "Debit Card", icon: "CreditCard" },
-  { id: "pm-4", name: "Cash", icon: "Banknote" },
-  { id: "pm-5", name: "Bank Transfer", icon: "Building2" },
-  { id: "pm-6", name: "Wallet", icon: "Wallet" },
-  { id: "pm-7", name: "Net Banking", icon: "Globe" },
+export const DEFAULT_ACCOUNTS = [
+  { id: "acc-1", name: "Cash Wallet", icon: "Banknote", type: "cash" },
+  { id: "acc-2", name: "Primary Bank Account", icon: "Building2", type: "bank" },
+  { id: "acc-3", name: "Secondary Bank Account", icon: "Building2", type: "bank" },
+  { id: "acc-4", name: "Credit Card", icon: "CreditCard", type: "credit" },
+  { id: "acc-5", name: "UPI Wallet", icon: "Smartphone", type: "wallet" },
 ];
 
 export const DEFAULT_INCOME_SOURCES = [
@@ -51,12 +57,9 @@ export const BUDGET_TYPES = [
 ];
 
 export const DEFAULT_BUDGET_CONFIG = {
-  salary: 0,
   needsPercent: 50,
   wantsPercent: 30,
   savingsPercent: 20,
-  weeklyLimit: 10000,
-  yearlyGrowthRate: 10,
 };
 
 export const DEFAULT_SETTINGS = {
@@ -67,6 +70,11 @@ export const DEFAULT_SETTINGS = {
   isLocked: false,
   notificationsEnabled: false,
 };
+
+export const SIP_FREQUENCIES = [
+  { key: "monthly", label: "Monthly" },
+  { key: "quarterly", label: "Quarterly" },
+];
 
 export const GOAL_TYPES = [
   { key: "emergency", label: "Emergency Fund", icon: "ShieldCheck", color: "#10b981" },

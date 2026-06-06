@@ -18,6 +18,7 @@ import {
   FileText,
   Wallet,
   TrendingUp,
+  Repeat,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,8 +29,8 @@ const sidebarItems = [
     { path: "/analytics", icon: BarChart3, label: "Analytics" },
   ]},
   { section: "Finance", items: [
-    { path: "/budget", icon: Wallet, label: "Budget" },
     { path: "/goals", icon: Target, label: "Goals" },
+    { path: "/sips", icon: Repeat, label: "SIPs" },
     { path: "/calendar", icon: Calendar, label: "Calendar" },
   ]},
   { section: "More", items: [

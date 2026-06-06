@@ -15,9 +15,9 @@ const useBudgetStore = create(persist((set) => ({
         set({
           budgetConfig: {
             ...DEFAULT_BUDGET_CONFIG,
-            needsPercent: Number(b.needs_budget),
-            wantsPercent: Number(b.wants_budget),
-            savingsPercent: Number(b.savings_budget),
+            needsPercent: Number(b.needs_budget) || DEFAULT_BUDGET_CONFIG.needsPercent,
+            wantsPercent: Number(b.wants_budget) || DEFAULT_BUDGET_CONFIG.wantsPercent,
+            savingsPercent: Number(b.savings_budget) || DEFAULT_BUDGET_CONFIG.savingsPercent,
           },
         });
       }
