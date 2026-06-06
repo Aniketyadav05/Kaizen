@@ -235,10 +235,10 @@ export default function Goals() {
             </DialogTitle>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit(handleAdd)} className="space-y-5 mt-4 min-w-0 w-full">
-            <div className="min-w-0 w-full">
+          <form onSubmit={handleSubmit(handleAdd)} className="space-y-5 mt-4 min-w-0 w-full max-w-full">
+            <div className="w-full max-w-full overflow-hidden">
               <label className="text-[13px] font-bold text-[var(--color-gray-1)] uppercase ml-1">Mission Type</label>
-              <div className="flex overflow-x-auto gap-2 mt-2 pb-1 scrollbar-none w-full">
+              <div className="flex overflow-x-auto gap-2 mt-2 pb-3 scrollbar-none w-full px-1">
                 {GOAL_TYPES.map((type) => {
                   const Icon = getIcon(type.icon);
                   const isSelected = selectedType === type.key;
@@ -278,14 +278,16 @@ export default function Goals() {
                   type="number" 
                   {...register("targetAmount")} 
                   placeholder="Target Amount" 
-                  className="flex-1 bg-[var(--color-gray-5)] rounded-2xl px-4 py-4 text-[17px] font-bold outline-none focus:ring-2 focus:ring-[var(--color-brand)] sf-rounded" 
+                  className="w-full bg-[var(--color-gray-5)] rounded-2xl px-4 py-4 text-[17px] font-bold outline-none focus:ring-2 focus:ring-[var(--color-brand)] sf-rounded" 
                 />
-                <input 
-                  type="number" 
-                  {...register("currentAmount")} 
-                  placeholder="Current" 
-                  className="w-1/3 bg-[var(--color-gray-5)] rounded-2xl px-4 py-4 text-[17px] font-bold outline-none focus:ring-2 focus:ring-[var(--color-brand)] sf-rounded" 
-                />
+                {editingGoal && (
+                  <input 
+                    type="number" 
+                    {...register("currentAmount")} 
+                    placeholder="Current" 
+                    className="w-1/3 bg-[var(--color-gray-5)] rounded-2xl px-4 py-4 text-[17px] font-bold outline-none focus:ring-2 focus:ring-[var(--color-brand)] sf-rounded" 
+                  />
+                )}
               </div>
               <input 
                 type="date" 
