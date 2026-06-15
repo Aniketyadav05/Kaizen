@@ -25,6 +25,7 @@ export default function Settings() {
   const budgetConfig = useBudgetStore((s) => s.budgetConfig);
   const updateBudgetConfig = useBudgetStore((s) => s.updateBudgetConfig);
   const settings = useSettingsStore((s) => s.settings);
+  const updateSettings = useSettingsStore((s) => s.updateSettings);
   const setPasswordEnabled = useSettingsStore((s) => s.setPasswordEnabled);
   const transactions = useTransactionStore((s) => s.transactions);
   const notificationPermission = useReminderStore((s) => s.notificationPermission);
@@ -36,13 +37,14 @@ export default function Settings() {
 
   // Live budget preview
   const budgetPreview = useMemo(() => {
-    const salary = budgetConfig.salary || 0;
+    // Use expected salary from settings, defaulting to 0
+    const salary = Number(settings?.expectedSalary) || 0;
     return {
       needs: Math.floor(salary * (budgetConfig.needsPercent / 100)),
       wants: Math.floor(salary * (budgetConfig.wantsPercent / 100)),
       savings: Math.ceil(salary * (budgetConfig.savingsPercent / 100)),
     };
-  }, [budgetConfig]);
+  }, [budgetConfig, settings?.expectedSalary]);
 
   // Percentages validation
   const percentTotal = (budgetConfig.needsPercent || 0) + (budgetConfig.wantsPercent || 0) + (budgetConfig.savingsPercent || 0);
@@ -210,14 +212,24 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* Annual Growth */}
+          {/* Expected Salary & Annual Growth */}
+          <div className="flex items-center justify-between p-3 bg-[var(--color-card)] border-b border-[var(--color-border)]">
+            <span className="text-[16px] font-medium ml-10 text-[var(--color-gray-1)]">Expected Monthly Income</span>
+            <input
+              type="number"
+              value={settings?.expectedSalary || ""}
+              onChange={(e) => updateSettings({ expectedSalary: Number(e.target.value) })}
+              className="text-right text-[16px] font-semibold text-[var(--color-brand)] bg-transparent border-none outline-none w-24"
+              placeholder="0"
+            />
+          </div>
           <div className="flex items-center justify-between p-3 bg-[var(--color-card)]">
             <span className="text-[16px] font-medium ml-10 text-[var(--color-gray-1)]">Annual Growth %</span>
             <input
               type="number"
               value={budgetConfig.yearlyGrowthRate || ""}
               onChange={(e) => updateBudgetConfig({ yearlyGrowthRate: Number(e.target.value) })}
-              className="text-right text-[16px] font-semibold text-[var(--color-gray-1)] bg-transparent border-none outline-none w-16"
+              className="text-right text-[16px] font-semibold text-[var(--color-brand)] bg-transparent border-none outline-none w-16"
               placeholder="0"
             />
           </div>

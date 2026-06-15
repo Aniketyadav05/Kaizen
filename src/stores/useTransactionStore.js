@@ -5,6 +5,19 @@ import useSummaryStore from "./useSummaryStore";
 import useCategoryStore from "./useCategoryStore";
 import { DEFAULT_CATEGORIES } from "../lib/seedData";
 
+const LEGACY_CATEGORY_TYPES = {
+  "Food": "Want",
+  "Rent": "Need",
+  "Shopping": "Want",
+  "Travel": "Want",
+  "Entertainment": "Want",
+  "Utilities": "Need",
+  "Healthcare": "Need",
+  "Insurance": "Need",
+  "Education": "Need",
+  "Investment": "Saving"
+};
+
 /**
  * Derive budgetType from category name using the category store.
  * Falls back to DEFAULT_CATEGORIES if store is empty.
@@ -13,7 +26,9 @@ function deriveBudgetType(categoryName) {
   const storeCategories = useCategoryStore.getState().categories;
   const cats = storeCategories.length > 0 ? storeCategories : DEFAULT_CATEGORIES;
   const cat = cats.find((c) => c.name === categoryName);
-  return cat?.type || "Want";
+  if (cat) return cat.type;
+  if (LEGACY_CATEGORY_TYPES[categoryName]) return LEGACY_CATEGORY_TYPES[categoryName];
+  return "Want";
 }
 
 const useTransactionStore = create(persist((set, get) => ({
@@ -125,18 +140,45 @@ const useTransactionStore = create(persist((set, get) => ({
     const original = get().transactions.find((t) => t.id === id);
     if (!original) return;
     
+    const normalizedUpdates = { ...updates, amount: Number(updates.amount) };
+    if (normalizedUpdates.account) {
+      normalizedUpdates.payment_method = normalizedUpdates.account;
+    }
+
     const isIncome = original.type === "income";
     const isTransfer = original.type === "transfer";
     const endpoint = isIncome ? `/income/${id}` : `/transactions/${id}`;
 
     set((state) => ({
-      transactions: state.transactions.map((t) => (t.id === id ? { ...t, ...updates } : t)),
+      transactions: state.transactions.map((t) => (t.id === id ? { ...t, ...normalizedUpdates } : t)),
     }));
     
     if (isTransfer) return;
 
     try {
-      await api.put(endpoint, updates);
+      let payload;
+      if (isIncome) {
+        payload = { 
+          date: normalizedUpdates.date, 
+          source: normalizedUpdates.source || original.source, 
+          amount: normalizedUpdates.amount, 
+          notes: normalizedUpdates.notes || "", 
+          type: "income", 
+          payment_method: normalizedUpdates.account || original.payment_method || original.paymentMethod 
+        };
+      } else {
+        payload = { 
+          date: normalizedUpdates.date, 
+          description: normalizedUpdates.description || original.description, 
+          category: normalizedUpdates.category || original.category, 
+          amount: normalizedUpdates.amount, 
+          payment_method: normalizedUpdates.account || original.payment_method || original.paymentMethod, 
+          type: "expense", 
+          notes: normalizedUpdates.notes || "", 
+          budgetType: normalizedUpdates.budgetType || original.budgetType 
+        };
+      }
+      await api.put(endpoint, payload);
       useSummaryStore.getState().fetchSummariesAndMetadata();
     } catch (error) {
       // Ignore API errors for local persistence

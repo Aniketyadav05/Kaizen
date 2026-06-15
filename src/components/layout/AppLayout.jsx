@@ -17,6 +17,7 @@ import AddTransactionSheet from "../transactions/AddTransactionSheet";
 
 export default function AppLayout() {
   const [showAddSheet, setShowAddSheet] = useState(false);
+  const [editTransaction, setEditTransaction] = useState(null);
 
   return (
     <div className="min-h-dvh bg-background">
@@ -34,7 +35,7 @@ export default function AppLayout() {
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
             >
-              <Outlet context={{ openAddSheet: () => setShowAddSheet(true) }} />
+              <Outlet context={{ openAddSheet: () => setShowAddSheet(true), openEditSheet: (t) => setEditTransaction(t) }} />
             </motion.div>
           </AnimatePresence>
         </div>
@@ -43,10 +44,16 @@ export default function AppLayout() {
       {/* Mobile Bottom Nav */}
       <BottomNav />
 
-      {/* Quick Add Transaction Sheet */}
+      {/* Quick Add / Edit Transaction Sheet */}
       <AddTransactionSheet
-        open={showAddSheet}
-        onOpenChange={setShowAddSheet}
+        open={showAddSheet || !!editTransaction}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowAddSheet(false);
+            setEditTransaction(null);
+          }
+        }}
+        editTransaction={editTransaction}
       />
     </div>
   );

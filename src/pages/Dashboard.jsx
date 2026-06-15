@@ -14,7 +14,7 @@ import NumberCounter from "@/components/ui/NumberCounter";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { openAddSheet } = useOutletContext();
+  const { openAddSheet, openEditSheet } = useOutletContext();
   const transactions = useTransactionStore((s) => s.transactions);
   const categories = useCategoryStore((s) => s.categories);
   const goals = useGoalStore((s) => s.goals);
@@ -245,7 +245,7 @@ export default function Dashboard() {
             }
 
             return (
-              <div key={t.id} className="ios-list-item px-4">
+              <button key={t.id} onClick={() => openEditSheet(t)} className="ios-list-item px-4 text-left w-full active:bg-[var(--color-gray-5)]">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full shrink-0" style={{ backgroundColor: iconColor + "20" }}>
                   <IconComp className="h-4 w-4" style={{ color: iconColor }} strokeWidth={2.5} />
                 </div>
@@ -266,7 +266,7 @@ export default function Dashboard() {
                     {isToday(new Date(t.date)) ? "Today" : formatDate(t.date)}
                   </p>
                 </div>
-              </div>
+              </button>
             );
           })}
           {data.recentTx.length === 0 && (

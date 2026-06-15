@@ -13,6 +13,7 @@ import { calculateCalendarHeatmap } from "@/lib/calculations";
 import { formatCurrency, cn } from "@/lib/utils";
 import { getIcon } from "@/lib/iconMap";
 import { format } from "date-fns";
+import { useOutletContext } from "react-router-dom";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -21,6 +22,7 @@ export default function CalendarView() {
   const categories = useCategoryStore((s) => s.categories);
   const [year, setYear] = useState(new Date().getFullYear());
   const [selectedDate, setSelectedDate] = useState(null);
+  const { openEditSheet } = useOutletContext();
 
   const fetchTransactions = useTransactionStore((s) => s.fetchTransactions);
 
@@ -144,20 +146,20 @@ export default function CalendarView() {
                     const isIncome = t.type === "income";
 
                     return (
-                      <div key={t.id} className="ios-list-item">
+                      <button key={t.id} onClick={() => openEditSheet(t)} className="ios-list-item text-left w-full active:bg-[var(--color-gray-5)]">
                         <div className="flex h-9 w-9 items-center justify-center rounded-full shrink-0" style={{ backgroundColor: (cat?.color || "#64748b") + "20" }}>
                           <Icon className="h-5 w-5" style={{ color: cat?.color || "#64748b" }} />
                         </div>
                         <div className="flex-1 min-w-0 px-1">
                           <p className="text-[17px] font-medium truncate">{t.description || t.category}</p>
-                          <p className="text-[13px] text-[var(--color-gray-1)]">{t.paymentMethod}</p>
+                          <p className="text-[13px] text-[var(--color-gray-1)]">{t.paymentMethod || t.account}</p>
                         </div>
                         <div className="text-right">
                           <p className={cn("text-[17px] font-semibold", isIncome ? "text-[var(--color-income)]" : "text-[var(--color-foreground)]")}>
                             {isIncome ? "+" : "-"}{formatCurrency(t.amount)}
                           </p>
                         </div>
-                      </div>
+                      </button>
                     );
                   })}
                   <div className="flex items-center justify-between p-3 border-t border-[var(--color-border)] bg-[var(--color-gray-5)]/50">

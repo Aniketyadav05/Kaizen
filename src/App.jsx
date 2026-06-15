@@ -58,6 +58,7 @@ export default function App() {
   const fetchBudget = useBudgetStore((s) => s.fetchBudget);
   const fetchGoals = useGoalStore((s) => s.fetchGoals);
   const fetchSummariesAndMetadata = useSummaryStore((s) => s.fetchSummariesAndMetadata);
+  const fetchSettings = useSettingsStore((s) => s.fetchSettings);
   
   const transactions = useTransactionStore((s) => s.transactions);
   const checkPermissionStatus = useReminderStore((s) => s.checkPermissionStatus);
@@ -65,6 +66,7 @@ export default function App() {
 
   useEffect(() => {
     fetchSummariesAndMetadata();
+    fetchSettings();
     fetchTransactions();
     fetchCategories();
     fetchBudget();
@@ -94,7 +96,11 @@ export default function App() {
 
   // Show lock screen if password is enabled and app is locked
   if (passwordEnabled && isLocked) {
-    return <LockScreen />;
+    return (
+      <ErrorBoundary>
+        <LockScreen />
+      </ErrorBoundary>
+    );
   }
 
   return (

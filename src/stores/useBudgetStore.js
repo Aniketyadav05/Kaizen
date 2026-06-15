@@ -27,12 +27,12 @@ const useBudgetStore = create(persist((set) => ({
   updateBudgetConfig: async (updates) => {
     set((state) => ({ budgetConfig: { ...state.budgetConfig, ...updates } }));
     try {
-      // In a real app we'd map this properly or send it as a new config row
+      const currentState = get().budgetConfig;
       await api.post("/budget", {
         month: new Date().toISOString().slice(0, 7),
-        needs_budget: updates.needsPercent,
-        wants_budget: updates.wantsPercent,
-        savings_budget: updates.savingsPercent,
+        needs_budget: currentState.needsPercent,
+        wants_budget: currentState.wantsPercent,
+        savings_budget: currentState.savingsPercent,
       });
     } catch (error) {}
   },

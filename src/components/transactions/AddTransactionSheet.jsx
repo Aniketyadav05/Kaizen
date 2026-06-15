@@ -22,6 +22,7 @@ export default function AddTransactionSheet({ open, onOpenChange, editTransactio
   
   const addTransaction = useTransactionStore((s) => s.addTransaction);
   const updateTransaction = useTransactionStore((s) => s.updateTransaction);
+  const deleteTransaction = useTransactionStore((s) => s.deleteTransaction);
   const lastUsedAccount = useTransactionStore((s) => s.lastUsedAccount);
   const lastUsedCategory = useTransactionStore((s) => s.lastUsedCategory);
 
@@ -76,7 +77,11 @@ export default function AddTransactionSheet({ open, onOpenChange, editTransactio
     if (editTransaction) {
       setMode(editTransaction.type);
       Object.entries(editTransaction).forEach(([key, value]) => {
-        setValue(key, value);
+        if (key === "date" && typeof value === "string") {
+          setValue(key, value.split("T")[0]);
+        } else {
+          setValue(key, value);
+        }
       });
       if (editTransaction.notes) setShowNotes(true);
     }
@@ -103,20 +108,20 @@ export default function AddTransactionSheet({ open, onOpenChange, editTransactio
   }, [open, editTransaction, reset, defaultAccount, lastUsedCategory, mode, accounts]);
 
   const onSubmit = (data) => {
+    let finalData = { ...data, type: mode };
+    
+    if (mode === "expense") {
+      finalData.description = data.description || data.category;
+    } else if (mode === "income") {
+      finalData.category = data.source;
+      finalData.description = data.description || data.source;
+    } else if (mode === "transfer") {
+      finalData.description = data.description || `Transfer to ${data.toAccount}`;
+    }
+
     if (editTransaction) {
-      updateTransaction(editTransaction.id, data);
+      updateTransaction(editTransaction.id, finalData);
     } else {
-      let finalData = { ...data, type: mode };
-      
-      if (mode === "expense") {
-        finalData.description = data.description || data.category;
-      } else if (mode === "income") {
-        finalData.category = data.source;
-        finalData.description = data.description || data.source;
-      } else if (mode === "transfer") {
-        finalData.description = data.description || `Transfer to ${data.toAccount}`;
-      }
-      
       addTransaction(finalData);
     }
     onOpenChange(false);
@@ -328,8 +333,22 @@ export default function AddTransactionSheet({ open, onOpenChange, editTransactio
                   className="w-full bg-[var(--color-gray-5)] rounded-xl p-3.5 text-[15px] font-semibold outline-none focus:ring-2 focus:ring-[var(--color-brand)] placeholder:text-[var(--color-gray-2)]"
                 />
 
-                <div className="pt-2">
-                  <button onClick={handleSubmit(onSubmit)} className="w-full duo-btn duo-btn-primary !text-lg !py-4">
+                <div className="pt-2 flex gap-3">
+                  {editTransaction && (
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        if (window.confirm("Are you sure you want to delete this transaction?")) {
+                          deleteTransaction(editTransaction.id);
+                          onOpenChange(false);
+                        }
+                      }} 
+                      className="w-1/3 duo-btn bg-[var(--color-expense)]/10 text-[var(--color-expense)] !text-lg !py-4"
+                    >
+                      Delete
+                    </button>
+                  )}
+                  <button onClick={handleSubmit(onSubmit)} className="flex-1 duo-btn duo-btn-primary !text-lg !py-4">
                     Save {mode === "expense" ? "Expense" : (mode === "income" ? "Income" : "Transfer")}
                   </button>
                 </div>
