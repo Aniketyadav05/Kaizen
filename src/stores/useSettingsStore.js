@@ -17,12 +17,17 @@ const useSettingsStore = create(
             if (parsedData.passwordEnabled === 'true') parsedData.passwordEnabled = true;
             if (parsedData.passwordEnabled === 'false') parsedData.passwordEnabled = false;
             
+            // Safeguard: If password is enabled but no hash exists on the backend, disable it to prevent lockouts.
+            if (parsedData.passwordEnabled && !parsedData.passwordHash) {
+              parsedData.passwordEnabled = false;
+            }
+            
             set((state) => ({
               settings: {
                 ...state.settings,
                 ...parsedData,
                 // Only force lock if it was already locked or if password wasn't previously enabled
-                isLocked: state.settings.isLocked || (!state.settings.passwordEnabled && (parsedData.passwordEnabled === true || parsedData.passwordEnabled === 'true')),
+                isLocked: state.settings.isLocked || (!state.settings.passwordEnabled && parsedData.passwordEnabled),
               }
             }));
           }
